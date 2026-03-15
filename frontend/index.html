@@ -1,0 +1,3342 @@
+<!DOCTYPE html>
+<html class="light" lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>OCR Thuốc - Nhận dạng đơn thuốc thông minh</title>
+    <link rel="icon" type="image/svg+xml" href="/frontend/brand/favicon.svg">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" rel="stylesheet"/>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { DEFAULT: "#0ea5a4", 50: "#effefa", 100: "#c8fff9", 200: "#91fff4", 300: "#53f5ea", 400: "#1eddd3", 500: "#0ea5a4", 600: "#068585", 700: "#096a6b", 800: "#0c5456", 900: "#0f4547" },
+                        secondary: { DEFAULT: "#3b82f6", 50: "#eff6ff", 500: "#3b82f6", 600: "#2563eb" },
+                        accent: { DEFAULT: "#22c55e", 50: "#f0fdf4", 500: "#22c55e" },
+                        dark: { DEFAULT: "#0f172a", 50: "#f8fafc", 100: "#f1f5f9", 200: "#e2e8f0", 700: "#334155", 800: "#1e293b", 900: "#0f172a" }
+                    },
+                    fontFamily: { display: ["Poppins", "Inter", "sans-serif"], body: ["Inter", "sans-serif"] },
+                    borderRadius: { "2xl": "18px", "3xl": "24px" },
+                },
+            },
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        h1,h2,h3,.font-display { font-family: 'Poppins', sans-serif; }
+
+        /* Neural Network Canvas */
+        #neuralCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+
+        /* Mouse Light Effect */
+        .mouse-light { position: fixed; width: 600px; height: 600px; border-radius: 50%; pointer-events: none; z-index: 1;
+            background: radial-gradient(circle, rgba(14,165,164,0.08) 0%, transparent 70%);
+            transform: translate(-50%, -50%); transition: opacity 0.3s; }
+        .dark .mouse-light { background: radial-gradient(circle, rgba(14,165,164,0.12) 0%, transparent 70%); }
+
+        /* Glass Card */
+        .glass { background: rgba(255,255,255,0.6); backdrop-filter: blur(20px) saturate(180%); border: 1px solid rgba(255,255,255,0.3); }
+        .dark .glass { background: rgba(30,41,59,0.6); border-color: rgba(255,255,255,0.08); }
+
+        /* Sidebar */
+        .sidebar { transition: width 0.4s cubic-bezier(0.4,0,0.2,1); }
+        .sidebar.collapsed { width: 80px; }
+        .sidebar.collapsed .sidebar-text { display: none; }
+        .sidebar.collapsed .sidebar-logo-text { display: none; }
+        .sidebar.collapsed .sidebar-logo-icon { display: none; }
+        .sidebar.collapsed #sidebar-header { padding-left: 0.5rem; padding-right: 0.5rem; justify-content: center; gap: 0; }
+        .sidebar.collapsed #collapseBtn { margin: 0 auto; background: rgba(14,165,164,0.1); border-radius: 10px; padding: 8px; }
+        .sidebar.collapsed #collapseBtn:hover { background: rgba(14,165,164,0.22); }
+        .sidebar.collapsed #collapseBtn svg { color: #0ea5a4; width: 18px; height: 18px; }
+        .sidebar-link { transition: all 0.3s ease; position: relative; overflow: hidden; }
+        .sidebar-link::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 0; background: #0ea5a4; border-radius: 0 4px 4px 0; transition: height 0.3s ease; }
+        .sidebar-link:hover::before, .sidebar-link.active::before { height: 60%; }
+        .sidebar-link:hover, .sidebar-link.active { background: rgba(14,165,164,0.08); }
+        .sidebar-link:hover svg, .sidebar-link.active svg { filter: drop-shadow(0 0 6px rgba(14,165,164,0.5)); color: #0ea5a4; }
+        .brand-logo-image {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 12px;
+            display: block;
+            box-shadow: 0 6px 14px rgba(14, 165, 164, 0.24);
+        }
+        .brand-logo-fallback {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #60a5fa 0%, #1d4ed8 100%);
+            color: #ffffff;
+            font-size: 20px;
+            font-weight: 700;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 14px rgba(29, 78, 216, 0.35);
+        }
+
+        /* Glow Effects */
+        .glow-teal { box-shadow: 0 0 30px rgba(14,165,164,0.15), 0 0 60px rgba(14,165,164,0.05); }
+        .dark .glow-teal { box-shadow: 0 0 30px rgba(14,165,164,0.25), 0 0 60px rgba(14,165,164,0.1); }
+        .glow-hover:hover { box-shadow: 0 8px 40px rgba(14,165,164,0.2), 0 0 60px rgba(14,165,164,0.08); transform: translateY(-4px); }
+
+        /* Upload Zone */
+        .upload-zone {
+            transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
+            background: #ffffff !important;
+            border-color: rgba(14,165,164,0.52) !important;
+            box-shadow: 0 0 0 1px rgba(14,165,164,0.2) inset, 0 12px 26px rgba(2,132,199,0.2) !important;
+            backdrop-filter: none !important;
+            opacity: 1 !important;
+        }
+        .dark .upload-zone {
+            background: #1f2937 !important;
+            border-color: rgba(94, 234, 212, 0.82) !important;
+            box-shadow: 0 0 0 1px rgba(94,234,212,0.35) inset, 0 18px 34px rgba(2,132,199,0.35) !important;
+            backdrop-filter: none !important;
+            opacity: 1 !important;
+        }
+        .upload-zone:hover { border-color: #0ea5a4 !important; background: linear-gradient(145deg, #ffffff, #ecfeff); }
+        .dark .upload-zone:hover { background: linear-gradient(145deg, rgba(51,65,85,0.98), rgba(15,23,42,0.98)); }
+        .upload-zone.dragover { border-color: #22c55e !important; background: rgba(34,197,94,0.1); transform: scale(1.01); }
+        .upload-zone:hover .upload-icon { animation: pulse-glow 2s ease-in-out infinite; }
+        .upload-zone .click-hint {
+            background: rgba(14,165,164,0.14);
+            color: #0f766e;
+            border: 1px solid rgba(14,165,164,0.35);
+            box-shadow: 0 6px 18px rgba(14,165,164,0.18);
+        }
+        .dark .upload-zone .click-hint {
+            background: rgba(20, 184, 166, 0.28);
+            color: #ffffff;
+            border-color: rgba(94,234,212,0.7);
+            box-shadow: 0 8px 20px rgba(20,184,166,0.35);
+        }
+        .dark #uploadArea h3,
+        .dark #uploadArea p {
+            color: #ffffff !important;
+            opacity: 1 !important;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+        }
+        #uploadArea h3,
+        #uploadArea p {
+            opacity: 1 !important;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { filter: drop-shadow(0 0 8px rgba(14,165,164,0.3)); transform: scale(1); }
+            50% { filter: drop-shadow(0 0 20px rgba(14,165,164,0.6)); transform: scale(1.08); }
+        }
+
+        /* Scanner Animation */
+        @keyframes scan-line { 0% { top: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+        .scan-line { position: absolute; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, #0ea5a4, transparent);
+            box-shadow: 0 0 15px rgba(14,165,164,0.6); animation: scan-line 2.5s ease-in-out infinite; }
+
+        /* Stat Cards */
+        .stat-card {
+            transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
+            background: #ffffff !important;
+            border: 1px solid rgba(14,165,164,0.24);
+            box-shadow: 0 12px 28px rgba(2, 132, 199, 0.16), 0 0 0 1px rgba(255,255,255,0.9) inset !important;
+            backdrop-filter: none !important;
+            opacity: 1 !important;
+        }
+        .dark .stat-card {
+            background: #334155 !important;
+            border-color: rgba(125, 211, 252, 0.7) !important;
+            box-shadow: 0 16px 34px rgba(2, 132, 199, 0.34), 0 0 0 1px rgba(148,163,184,0.38) inset !important;
+            backdrop-filter: none !important;
+            opacity: 1 !important;
+        }
+        .stat-card:hover { transform: translateY(-6px); border-color: rgba(14,165,164,0.5); }
+        .stat-value {
+            color: #0f172a;
+            font-size: 2.4rem;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+            text-shadow: 0 1px 0 rgba(255,255,255,0.75);
+            font-weight: 900;
+        }
+        .dark .stat-value {
+            color: #ffffff !important;
+            text-shadow: 0 0 10px rgba(56, 189, 248, 0.34);
+        }
+        .stat-label {
+            color: #0f172a;
+            font-size: 1.12rem;
+            font-weight: 800;
+            line-height: 1.35;
+        }
+        .dark .stat-label { color: #ffffff !important; }
+
+        #statsSection {
+            background: #f8fafc !important;
+            border: 1px solid rgba(14, 165, 164, 0.32);
+            border-radius: 22px;
+            padding: 16px;
+            position: relative;
+            z-index: 12;
+            backdrop-filter: none !important;
+            opacity: 1 !important;
+        }
+        .dark #statsSection {
+            background: #0f172a !important;
+            border-color: rgba(94,234,212,0.45) !important;
+            box-shadow: 0 10px 24px rgba(2,132,199,0.24);
+            backdrop-filter: none !important;
+            opacity: 1 !important;
+        }
+        .dark #statsSection p,
+        .dark #statsSection span,
+        .dark #statsSection i {
+            opacity: 1 !important;
+            filter: none !important;
+        }
+
+        .stat-icon-wrap {
+            box-shadow: 0 4px 10px rgba(2,132,199,0.12);
+        }
+        .dark .stat-icon-wrap {
+            box-shadow: 0 6px 14px rgba(2,132,199,0.2);
+        }
+
+        /* Intro sections */
+        .feature-card {
+            border: 1px solid rgba(148, 163, 184, 0.28);
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.10);
+            transition: all 0.35s ease;
+            position: relative;
+            z-index: 2;
+            backdrop-filter: blur(8px);
+            opacity: 1 !important;
+        }
+        .dark .feature-card {
+            background: rgba(30, 41, 59, 0.88);
+            border-color: rgba(94, 234, 212, 0.36);
+            box-shadow: 0 14px 30px rgba(2, 132, 199, 0.22), 0 0 0 1px rgba(15, 23, 42, 0.25) inset;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(45, 212, 191, 0.52);
+            box-shadow: 0 18px 34px rgba(14, 165, 164, 0.18);
+        }
+        .feature-card h4 {
+            color: #0f172a;
+        }
+        .feature-card p {
+            color: #334155;
+            font-weight: 500;
+        }
+        .dark .feature-card h4 {
+            color: #f8fafc;
+        }
+        .dark .feature-card p {
+            color: #dbeafe;
+        }
+        .guide-step {
+            border: 1px solid rgba(148, 163, 184, 0.28);
+            background: rgba(255, 255, 255, 0.75);
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+            opacity: 1 !important;
+        }
+        .dark .guide-step {
+            background: rgba(15, 23, 42, 0.62);
+            border-color: rgba(148, 163, 184, 0.28);
+            box-shadow: 0 10px 24px rgba(2, 132, 199, 0.15);
+        }
+        #featureIntroSection,
+        #usageGuideSection {
+            position: relative;
+            z-index: 3;
+        }
+        #featureIntroSection .font-display,
+        #usageGuideSection .font-display {
+            color: #0f172a;
+            text-shadow: none;
+        }
+        .dark #featureIntroSection .font-display,
+        .dark #usageGuideSection .font-display {
+            color: #f8fafc;
+            text-shadow: 0 1px 8px rgba(2, 6, 23, 0.35);
+        }
+        .guide-step h4 {
+            color: #1e293b;
+        }
+        .dark .guide-step h4 {
+            color: #f1f5f9;
+        }
+
+        @media (max-width: 1024px) {
+            .stat-value { font-size: 2.1rem; }
+            .stat-label { font-size: 1rem; }
+        }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        @keyframes logoPulse {
+            0%   { filter: drop-shadow(0 0 0px rgba(91,179,255,0)); transform: scale(1); }
+            30%  { filter: drop-shadow(0 0 14px rgba(91,179,255,1)) drop-shadow(0 0 6px rgba(255,200,60,0.7)); transform: scale(1.22); }
+            100% { filter: drop-shadow(0 0 3px rgba(91,179,255,0.15)); transform: scale(1); }
+        }
+        .logo-pulse { animation: logoPulse 0.55s cubic-bezier(0.4,0,0.2,1) forwards; }
+        #logoIcon { cursor: pointer; }
+        .float-anim { animation: float 6s ease-in-out infinite; }
+        .float-anim-delay { animation: float 6s ease-in-out 1.5s infinite; }
+        .float-anim-delay2 { animation: float 6s ease-in-out 3s infinite; }
+
+        /* Button */
+        .btn-primary { transition: all 0.3s cubic-bezier(0.4,0,0.2,1); position: relative; overflow: hidden; }
+        .btn-primary:hover { transform: scale(1.05); box-shadow: 0 10px 40px rgba(14,165,164,0.3); }
+        .btn-primary::after { content: ''; position: absolute; inset: 0; background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%);
+            transform: translateX(-100%); transition: transform 0.6s; }
+        .btn-primary:hover::after { transform: translateX(100%); }
+
+        /* Icon Bounce */
+        .icon-bounce:hover svg { animation: bounce-subtle 0.5s ease; }
+        @keyframes bounce-subtle { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-4px); } 60% { transform: translateY(-2px); } }
+
+        /* Dark Mode Transition */
+        * { transition: background-color 0.4s ease, border-color 0.4s ease, color 0.3s ease; }
+
+        /* Spinner */
+        .loading-spinner { width: 24px; height: 24px; border: 3px solid rgba(255,255,255,0.3); border-top-color: white;
+            border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(14,165,164,0.2); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(14,165,164,0.4); }
+
+        /* History section and cards */
+        #historySection {
+            background: rgba(255, 255, 255, 0.52);
+            border: 1px solid rgba(148, 163, 184, 0.26);
+            border-radius: 22px;
+            padding: 18px;
+            box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04), 0 0 0 1px rgba(255,255,255,0.45) inset;
+        }
+        .dark #historySection {
+            background: rgba(15, 23, 42, 0.42);
+            border-color: rgba(148, 163, 184, 0.24);
+            box-shadow: 0 10px 26px rgba(2, 132, 199, 0.1);
+        }
+        .history-card {
+            transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
+            background: rgba(255, 255, 255, 0.78) !important;
+            border: 1px solid rgba(148, 163, 184, 0.30);
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+        }
+        .dark .history-card {
+            background: rgba(30, 41, 59, 0.64) !important;
+            border-color: rgba(148, 163, 184, 0.28);
+            box-shadow: 0 8px 22px rgba(2, 132, 199, 0.12);
+        }
+        .history-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(20, 184, 166, 0.45);
+            box-shadow: 0 12px 34px rgba(14,165,164,0.14);
+        }
+        .ocr-section-card {
+            border-radius: 14px;
+            padding: 12px 14px;
+            background: rgba(15, 23, 42, 0.44);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+        .ocr-section-title {
+            font-size: 12px;
+            color: #67e8f9;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        .ocr-line {
+            padding: 6px 10px;
+            border-radius: 10px;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            color: #e2e8f0;
+            font-size: 13px;
+            line-height: 1.55;
+            margin-bottom: 6px;
+        }
+        .ocr-line:last-child { margin-bottom: 0; }
+        .ocr-empty { color: #94a3b8; font-size: 13px; }
+
+        /* Auth Required Modal */
+        .auth-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.62);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .auth-modal-card {
+            width: min(480px, 100%);
+            border-radius: 22px;
+            background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(240,253,250,0.92));
+            border: 1px solid rgba(14,165,164,0.32);
+            box-shadow: 0 20px 60px rgba(2,132,199,0.25), 0 0 0 1px rgba(255,255,255,0.65) inset;
+            padding: 24px;
+        }
+        .dark .auth-modal-card {
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            border-color: rgba(45,212,191,0.45);
+            box-shadow: 0 20px 60px rgba(2,132,199,0.32), 0 0 0 1px rgba(45,212,191,0.2) inset;
+        }
+
+        .delete-modal-card {
+            width: min(460px, 100%);
+            border-radius: 22px;
+            background: linear-gradient(145deg, rgba(255,255,255,0.97), rgba(254,242,242,0.95));
+            border: 1px solid rgba(239,68,68,0.28);
+            box-shadow: 0 20px 60px rgba(220,38,38,0.2), 0 0 0 1px rgba(255,255,255,0.6) inset;
+            padding: 24px;
+        }
+        .dark .delete-modal-card {
+            background: linear-gradient(145deg, #1f2937, #111827);
+            border-color: rgba(248,113,113,0.45);
+            box-shadow: 0 20px 60px rgba(239,68,68,0.22), 0 0 0 1px rgba(248,113,113,0.2) inset;
+        }
+
+        .scan-toast-stack {
+            position: fixed;
+            top: 88px;
+            right: 16px;
+            z-index: 95;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+            width: min(420px, calc(100vw - 28px));
+        }
+        .scan-toast {
+            border-radius: 14px;
+            padding: 12px 14px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 14px 32px rgba(15, 23, 42, 0.18);
+            backdrop-filter: blur(8px);
+            pointer-events: auto;
+        }
+        .scan-toast.success {
+            border-color: rgba(16, 185, 129, 0.45);
+            box-shadow: 0 14px 32px rgba(5, 150, 105, 0.2);
+        }
+        .scan-toast.error {
+            border-color: rgba(239, 68, 68, 0.45);
+            box-shadow: 0 14px 32px rgba(220, 38, 38, 0.2);
+        }
+        .dark .scan-toast {
+            background: rgba(15, 23, 42, 0.94);
+            border-color: rgba(148, 163, 184, 0.3);
+            box-shadow: 0 14px 32px rgba(2, 132, 199, 0.28);
+        .cropper-view-box,
+        .cropper-face {
+            border-radius: 16px;
+        }
+        .cropper-line,
+        .cropper-point {
+            background-color: #14b8a6;
+        }
+        .cropper-bg {
+            background-image: linear-gradient(45deg, rgba(15, 23, 42, 0.13) 25%, transparent 25%, transparent 75%, rgba(15, 23, 42, 0.13) 75%, rgba(15, 23, 42, 0.13));
+            background-size: 16px 16px;
+        }
+        }
+        .notify-panel {
+            position: absolute;
+            top: calc(100% + 10px);
+            right: 0;
+            width: min(380px, calc(100vw - 24px));
+            border-radius: 16px;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 22px 44px rgba(15, 23, 42, 0.2);
+            overflow: hidden;
+            z-index: 60;
+        }
+        .dark .notify-panel {
+            background: rgba(15, 23, 42, 0.95);
+            border-color: rgba(148, 163, 184, 0.24);
+            box-shadow: 0 22px 44px rgba(2, 132, 199, 0.24);
+        }
+        .notify-item {
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            border-radius: 12px;
+            padding: 10px 12px;
+            background: rgba(248, 250, 252, 0.92);
+        }
+        .dark .notify-item {
+            border-color: rgba(148, 163, 184, 0.26);
+            background: rgba(30, 41, 59, 0.78);
+        }
+
+        @media (max-width: 640px) {
+        }
+    </style>
+</head>
+
+<body class="bg-gradient-to-br from-slate-50 via-white to-teal-50/30 dark:from-dark-900 dark:via-dark-900 dark:to-slate-900 text-slate-900 dark:text-dark-200 font-body min-h-screen">
+
+<!-- Neural Network Background Canvas -->
+<canvas id="neuralCanvas"></canvas>
+
+<!-- Mouse Light Effect -->
+<div id="mouseLight" class="mouse-light" style="opacity:0;"></div>
+
+<!-- Scan Notification Toasts -->
+<div id="scanToastStack" class="scan-toast-stack" aria-live="polite" aria-atomic="true"></div>
+
+<!-- Auth Required Modal -->
+<div id="authModal" class="auth-modal-overlay hidden" aria-hidden="true">
+    <div id="authModalCard" class="auth-modal-card">
+        <div class="flex items-start gap-4">
+            <div class="w-11 h-11 rounded-xl bg-primary/20 dark:bg-primary/30 flex items-center justify-center flex-shrink-0">
+                <i data-lucide="shield-alert" class="w-5 h-5 text-primary dark:text-teal-300"></i>
+            </div>
+            <div class="flex-1">
+                <h3 class="font-display text-xl font-extrabold text-slate-900 dark:text-white">Bạn cần đăng nhập</h3>
+                <p class="mt-2 text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
+                    Vui lòng đăng nhập để sử dụng các chức năng quét đơn thuốc và xử lý OCR.
+                </p>
+            </div>
+        </div>
+        <div class="mt-6 flex items-center justify-end gap-3">
+            <button id="authModalClose" type="button" class="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 bg-slate-200/80 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all">
+                Để sau
+            </button>
+            <button id="authModalLogin" type="button" class="px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-primary to-primary-600 hover:opacity-90 shadow-lg shadow-primary/30 transition-all">
+                Đăng nhập ngay
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div id="deleteConfirmModal" class="auth-modal-overlay hidden" aria-hidden="true">
+    <div id="deleteConfirmCard" class="delete-modal-card">
+        <div class="flex items-start gap-4">
+            <div class="w-11 h-11 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+                <i data-lucide="triangle-alert" class="w-5 h-5 text-red-600 dark:text-red-300"></i>
+            </div>
+            <div class="flex-1">
+                <h3 class="font-display text-xl font-extrabold text-slate-900 dark:text-white">Xác nhận xóa đơn thuốc</h3>
+                <p id="deleteConfirmText" class="mt-2 text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
+                    Bạn có chắc chắn muốn xóa đơn thuốc này không?
+                </p>
+            </div>
+        </div>
+        <div class="mt-6 flex items-center justify-end gap-3">
+            <button id="deleteCancelBtn" type="button" class="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 bg-slate-200/80 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all">
+                Hủy
+            </button>
+            <button id="deleteConfirmBtn" type="button" class="px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-red-500 to-red-600 hover:opacity-90 shadow-lg shadow-red-500/30 transition-all">
+                Xóa đơn này
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Scan Error Modal -->
+<div id="scanErrorModal" class="auth-modal-overlay hidden" aria-hidden="true">
+    <div id="scanErrorCard" class="delete-modal-card">
+        <div class="flex items-start gap-4">
+            <div class="w-11 h-11 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+                <i data-lucide="scan-search" class="w-5 h-5 text-red-600 dark:text-red-300"></i>
+            </div>
+            <div class="flex-1">
+                <h3 class="font-display text-xl font-extrabold text-slate-900 dark:text-white">Không thể quét ảnh</h3>
+                <p id="scanErrorText" class="mt-2 text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
+                    Hình ảnh của bạn không thể quét. Vui lòng chọn ảnh đơn thuốc rõ chữ.
+                </p>
+            </div>
+        </div>
+        <div class="mt-6 flex items-center justify-end gap-3">
+            <button id="scanErrorCloseBtn" type="button" class="px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-red-500 to-red-600 hover:opacity-90 shadow-lg shadow-red-500/30 transition-all">
+                Đã hiểu
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<!-- Layout Wrapper -->
+<div class="relative z-10 flex min-h-screen">
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar w-[260px] fixed top-0 left-0 h-full z-50 flex flex-col border-r border-primary/10 glass">
+        <!-- Logo -->
+        <div id="sidebar-header" class="flex items-center gap-3 px-6 py-6 border-b border-primary/10" style="transition: padding 0.4s cubic-bezier(0.4,0,0.2,1);">
+            <div id="logoIcon" class="sidebar-logo-icon w-10 h-10 flex items-center justify-center flex-shrink-0 select-none">
+                <img src="/frontend/brand/logo-ai-engine.png" alt="Logo AI OCR" class="brand-logo-image" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"/>
+                <div class="brand-logo-fallback" aria-hidden="true">💊</div>
+            </div>
+            <span class="sidebar-logo-text font-display font-extrabold text-lg bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">OCR Thuốc</span>
+            <button id="collapseBtn" title="Thu gọn thanh công cụ" class="ml-auto p-1.5 rounded-lg hover:bg-primary/10 transition-all">
+                <svg id="collapseBtnIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="cbLeft" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#0ea5a4"/>
+                            <stop offset="100%" stop-color="#068585"/>
+                        </linearGradient>
+                        <linearGradient id="cbRight" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#22c55e"/>
+                            <stop offset="100%" stop-color="#16a34a"/>
+                        </linearGradient>
+                    </defs>
+                    <!-- Viên nang nằm ngang - nửa trái teal -->
+                    <path d="M12 5 C7.03 5 3 8.13 3 12 C3 15.87 7.03 19 12 19 L12 5 Z" fill="url(#cbLeft)"/>
+                    <!-- Nửa phải xanh lá -->
+                    <path d="M12 5 C16.97 5 21 8.13 21 12 C21 15.87 16.97 19 12 19 L12 5 Z" fill="url(#cbRight)"/>
+                    <!-- Đường phân cách -->
+                    <line x1="12" y1="5" x2="12" y2="19" stroke="rgba(255,255,255,0.7)" stroke-width="1.2"/>
+                    <!-- Viền -->
+                    <path d="M12 5 C7.03 5 3 8.13 3 12 C3 15.87 7.03 19 12 19 C16.97 19 21 15.87 21 12 C21 8.13 16.97 5 12 5 Z" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Nav Links -->
+        <nav class="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
+            <a href="#" class="sidebar-link active flex items-center gap-3 px-4 py-3 rounded-xl text-primary font-semibold icon-bounce">
+                <i data-lucide="layout-dashboard" class="w-5 h-5 flex-shrink-0"></i>
+                <span class="sidebar-text text-sm">Trang chủ</span>
+            </a>
+            <a href="#uploadSection" onclick="goToUploadSection(event);" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:text-primary font-medium icon-bounce">
+                <i data-lucide="scan-line" class="w-5 h-5 flex-shrink-0"></i>
+                <span class="sidebar-text text-sm">Quét đơn thuốc</span>
+            </a>
+            <a href="/stats" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:text-primary font-medium icon-bounce">
+                <i data-lucide="bar-chart-3" class="w-5 h-5 flex-shrink-0"></i>
+                <span class="sidebar-text text-sm">Thống kê</span>
+            </a>
+            <a href="/history" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:text-primary font-medium icon-bounce">
+                <i data-lucide="history" class="w-5 h-5 flex-shrink-0"></i>
+                <span class="sidebar-text text-sm">Lịch sử</span>
+            </a>
+            <a href="/profile" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:text-primary font-medium icon-bounce">
+                <i data-lucide="settings" class="w-5 h-5 flex-shrink-0"></i>
+                <span class="sidebar-text text-sm">Cài đặt</span>
+            </a>
+        </nav>
+
+        <!-- Sidebar Footer -->
+        <div class="px-3 py-4 border-t border-primary/10">
+            <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-primary font-medium icon-bounce">
+                <i data-lucide="life-buoy" class="w-5 h-5 flex-shrink-0"></i>
+                <span class="sidebar-text text-sm">Trợ giúp</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Area -->
+    <div id="mainArea" class="flex-1 ml-[260px] transition-all duration-400 flex flex-col min-h-screen">
+
+        <!-- Header -->
+        <header class="sticky top-0 z-40 glass border-b border-primary/10 px-8 py-4">
+            <div class="flex items-center justify-between">
+                <!-- Search -->
+                <div class="relative max-w-md w-full">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input id="historySearchInput" type="text" placeholder="Tìm kiếm chức năng (ví dụ: quét đơn thuốc, thống kê, lịch sử)..." class="w-full pl-11 pr-4 py-2.5 rounded-xl bg-slate-100/80 dark:bg-dark-800/80 border border-transparent focus:border-primary/30 focus:ring-2 focus:ring-primary/10 text-sm outline-none transition-all placeholder:text-slate-400"/>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <!-- Đăng nhập/Đăng ký ở bên phải header -->
+                    <div id="auth-buttons">
+                        <a href="/login" class="px-4 py-2 rounded-lg font-semibold text-sm bg-blue-600 hover:bg-blue-500 text-white shadow transition-all">Đăng nhập</a>
+                        <a href="/register" class="px-4 py-2 rounded-lg font-semibold text-sm bg-indigo-500 hover:bg-indigo-400 text-white shadow transition-all">Đăng ký</a>
+                    </div>
+                    <a id="user-avatar" href="/profile" style="display:none" title="Hồ sơ cá nhân">
+                        <div class="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-lg shadow-lg cursor-pointer select-none">
+                            <img id="avatar-image" alt="Avatar" class="w-full h-full object-cover hidden"/>
+                            <span id="avatar-initial">U</span>
+                        </div>
+                    </a>
+                    <!-- Dark Mode Toggle -->
+                    <button id="themeToggle" class="p-2.5 rounded-xl bg-slate-100/80 dark:bg-dark-800/80 hover:bg-primary/10 transition-all icon-bounce" title="Đổi giao diện">
+                        <i data-lucide="sun" class="w-5 h-5 text-amber-500 dark:hidden"></i>
+                        <i data-lucide="moon" class="w-5 h-5 text-blue-400 hidden dark:block"></i>
+                    </button>
+                    <!-- Notifications -->
+                    <div class="relative">
+                        <button id="notificationBtn" class="p-2.5 rounded-xl bg-slate-100/80 dark:bg-dark-800/80 hover:bg-primary/10 transition-all relative icon-bounce" aria-expanded="false" aria-controls="notificationPanel" title="Thông báo quét">
+                            <i data-lucide="bell" class="w-5 h-5 text-slate-500 dark:text-slate-400"></i>
+                            <span id="notificationDot" class="hidden absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-dark-800 animate-pulse"></span>
+                        </button>
+                        <div id="notificationPanel" class="notify-panel hidden" role="dialog" aria-label="Danh sách thông báo">
+                            <div class="px-4 py-3 border-b border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between">
+                                <p class="text-sm font-extrabold text-slate-800 dark:text-slate-100">Thông báo quét</p>
+                                <button id="notificationClearBtn" type="button" class="text-xs font-semibold text-slate-500 dark:text-slate-300 hover:text-red-500 transition-colors">Xóa tất cả</button>
+                            </div>
+                            <div id="notificationList" class="max-h-80 overflow-y-auto p-3 space-y-2"></div>
+                            <div id="notificationEmpty" class="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400 hidden">Chưa có thông báo quét nào.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <main id="mainContent" class="flex-1 px-8 py-8 overflow-y-auto">
+
+            <!-- Hero Section -->
+            <section class="grid grid-cols-1 lg:grid-cols-5 gap-8 mb-10">
+                <!-- Left: Info -->
+                <div class="lg:col-span-3 flex flex-col justify-center space-y-6">
+                    <div>
+                        <p class="text-primary font-semibold text-sm tracking-widest uppercase mb-3 flex items-center gap-2">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i> AI-Powered OCR System
+                        </p>
+                        <h2 class="font-display text-4xl xl:text-5xl font-black leading-[1.1] tracking-tight">
+                            Nhận dạng đơn thuốc<br/>
+                            <span class="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">bằng AI</span>
+                        </h2>
+                    </div>
+                    <p class="text-slate-500 dark:text-slate-400 text-lg max-w-xl leading-relaxed">
+                        Hệ thống OCR thông minh giúp số hóa đơn thuốc nhanh chóng và chính xác. Tối ưu hóa quy trình quản lý dược phẩm.
+                    </p>
+                    <div class="flex flex-wrap gap-4">
+                        <a href="#uploadSection" onclick="goToUploadSection(event);" class="btn-primary inline-flex items-center gap-3 bg-gradient-to-r from-primary to-primary-600 text-white px-8 py-4 rounded-2xl font-bold text-base shadow-xl shadow-primary/25">
+                            <i data-lucide="scan-line" class="w-5 h-5"></i>
+                            Quét đơn thuốc mới
+                        </a>
+                        <a href="/history" class="inline-flex items-center gap-3 bg-white/80 dark:bg-dark-800/80 backdrop-blur border border-slate-200 dark:border-dark-700 text-slate-700 dark:text-slate-300 px-8 py-4 rounded-2xl font-bold text-base hover:border-primary/40 hover:text-primary transition-all hover:scale-105">
+                            <i data-lucide="history" class="w-5 h-5"></i>
+                            Xem lịch sử
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Right: AI Visual -->
+                <div class="lg:col-span-2 flex items-center justify-center">
+                    <div class="relative float-anim">
+                        <div class="absolute -inset-4 bg-gradient-to-r from-primary/20 via-secondary/20 to-accent/20 rounded-3xl blur-2xl"></div>
+                        <div class="relative glass rounded-3xl p-8 glow-teal">
+                            <div class="flex flex-col items-center text-center space-y-4">
+                                <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/30">
+                                    <img src="/frontend/brand/logo-ai-engine.png" alt="AI Engine logo" class="w-20 h-20 rounded-2xl object-cover" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"/>
+                                    <i data-lucide="brain-circuit" class="w-10 h-10 text-white hidden"></i>
+                                </div>
+                                <h3 class="font-display font-bold text-xl">AI OCR</h3>
+                                <p class="text-sm text-slate-500 dark:text-slate-400">Tesseract LSTM + Tiền xử lý nâng cao</p>
+                                <div class="flex items-center gap-2 mt-2">
+                                    <span class="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
+                                    <span class="text-xs font-medium text-accent">Đang hoạt động</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Feature Introduction -->
+            <section id="featureIntroSection" class="mb-10">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-8 h-8 rounded-lg bg-primary/15 dark:bg-primary/25 flex items-center justify-center">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-primary"></i>
+                    </div>
+                    <h3 class="font-display text-xl font-bold">Giới thiệu chức năng</h3>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+                    <article class="feature-card rounded-2xl p-5">
+                        <div class="w-11 h-11 rounded-xl bg-primary/15 dark:bg-primary/25 flex items-center justify-center mb-4">
+                            <i data-lucide="scan-line" class="w-5 h-5 text-primary"></i>
+                        </div>
+                        <h4 class="font-display font-bold text-lg mb-2">Quét đơn thuốc</h4>
+                        <p class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">Tải ảnh đơn thuốc và nhận dạng nội dung bằng OCR tự động. Hỗ trợ quét đơn lẻ hoặc nhiều ảnh cùng lúc.</p>
+                    </article>
+
+                    <article class="feature-card rounded-2xl p-5">
+                        <div class="w-11 h-11 rounded-xl bg-secondary/15 dark:bg-secondary/25 flex items-center justify-center mb-4">
+                            <i data-lucide="history" class="w-5 h-5 text-secondary"></i>
+                        </div>
+                        <h4 class="font-display font-bold text-lg mb-2">Lịch sử tra cứu</h4>
+                        <p class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">Lưu toàn bộ đơn đã quét theo tài khoản, tìm kiếm nhanh theo từ khóa, lọc theo ngày và mở lại kết quả bất kỳ lúc nào.</p>
+                    </article>
+
+                    <article class="feature-card rounded-2xl p-5">
+                        <div class="w-11 h-11 rounded-xl bg-emerald-200/60 dark:bg-emerald-400/25 flex items-center justify-center mb-4">
+                            <i data-lucide="file-down" class="w-5 h-5 text-emerald-700 dark:text-emerald-300"></i>
+                        </div>
+                        <h4 class="font-display font-bold text-lg mb-2">Xuất file PDF</h4>
+                        <p class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">Xuất báo cáo đơn thuốc dạng biểu mẫu có khung, có tên người xuất, số điện thoại và nội dung thuốc rõ ràng để lưu trữ/in ấn.</p>
+                    </article>
+
+                    <article class="feature-card rounded-2xl p-5">
+                        <div class="w-11 h-11 rounded-xl bg-amber-200/60 dark:bg-amber-400/25 flex items-center justify-center mb-4">
+                            <i data-lucide="bell-ring" class="w-5 h-5 text-amber-700 dark:text-amber-300"></i>
+                        </div>
+                        <h4 class="font-display font-bold text-lg mb-2">Thông báo thông minh</h4>
+                        <p class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">Nhận thông báo thành công/thất bại theo thời gian thực, xem lại danh sách thông báo và mở nhanh đơn tương ứng từ chuông thông báo.</p>
+                    </article>
+                </div>
+            </section>
+
+            <!-- Usage Guide -->
+            <section id="usageGuideSection" class="mb-10">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-8 h-8 rounded-lg bg-accent/15 dark:bg-accent/25 flex items-center justify-center">
+                        <i data-lucide="book-open-check" class="w-4 h-4 text-accent"></i>
+                    </div>
+                    <h3 class="font-display text-xl font-bold">Hướng dẫn sử dụng nhanh</h3>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="guide-step rounded-2xl p-5">
+                        <div class="flex items-start gap-4">
+                            <div class="w-9 h-9 rounded-full bg-primary text-white font-bold flex items-center justify-center flex-shrink-0">1</div>
+                            <div>
+                                <h4 class="font-bold mb-1">Đăng nhập tài khoản</h4>
+                                <p class="text-sm text-slate-600 dark:text-slate-300">Đăng nhập để sử dụng quét OCR, lưu lịch sử cá nhân và xuất PDF có thông tin người dùng.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="guide-step rounded-2xl p-5">
+                        <div class="flex items-start gap-4">
+                            <div class="w-9 h-9 rounded-full bg-primary text-white font-bold flex items-center justify-center flex-shrink-0">2</div>
+                            <div>
+                                <h4 class="font-bold mb-1">Tải ảnh đơn thuốc</h4>
+                                <p class="text-sm text-slate-600 dark:text-slate-300">Chọn ảnh rõ nét, đúng nội dung đơn thuốc. Hệ thống sẽ cảnh báo nếu ảnh không thể quét OCR.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="guide-step rounded-2xl p-5">
+                        <div class="flex items-start gap-4">
+                            <div class="w-9 h-9 rounded-full bg-primary text-white font-bold flex items-center justify-center flex-shrink-0">3</div>
+                            <div>
+                                <h4 class="font-bold mb-1">Xem kết quả và kiểm tra thông báo</h4>
+                                <p class="text-sm text-slate-600 dark:text-slate-300">Sau khi quét, kết quả hiển thị ngay trên màn hình và thông báo sẽ xuất hiện ở góc phải, có thể mở lại từ chuông.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="guide-step rounded-2xl p-5">
+                        <div class="flex items-start gap-4">
+                            <div class="w-9 h-9 rounded-full bg-primary text-white font-bold flex items-center justify-center flex-shrink-0">4</div>
+                            <div>
+                                <h4 class="font-bold mb-1">Lưu, in và tra cứu lại</h4>
+                                <p class="text-sm text-slate-600 dark:text-slate-300">Vào Lịch sử để tìm lại đơn theo ngày/từ khóa, mở nhanh kết quả và xuất PDF dạng biểu mẫu khi cần in.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Stats Cards -->
+            <section id="statsSection" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
+                <div class="stat-card rounded-2xl p-5 glow-hover float-anim cursor-default">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="stat-icon-wrap w-11 h-11 rounded-xl bg-primary/20 dark:bg-cyan-400/25 flex items-center justify-center">
+                            <i data-lucide="file-scan" class="w-5 h-5 text-primary dark:text-teal-300"></i>
+                        </div>
+                        <span class="text-xs font-semibold text-emerald-700 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/60 px-2.5 py-1 rounded-full flex items-center gap-1">
+                            <i data-lucide="trending-up" class="w-3 h-3"></i> +12%
+                        </span>
+                    </div>
+                    <p class="stat-value font-display font-extrabold" id="statScanned">0</p>
+                    <p class="stat-label mt-1">Đơn thuốc đã quét</p>
+                </div>
+
+                <div class="stat-card rounded-2xl p-5 glow-hover float-anim-delay cursor-default">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="stat-icon-wrap w-11 h-11 rounded-xl bg-secondary/20 dark:bg-blue-400/25 flex items-center justify-center">
+                            <i data-lucide="target" class="w-5 h-5 text-secondary dark:text-blue-300"></i>
+                        </div>
+                        <span class="text-xs font-semibold text-blue-700 dark:text-blue-200 bg-blue-100 dark:bg-blue-900/60 px-2.5 py-1 rounded-full">Tốt</span>
+                    </div>
+                    <p class="stat-value font-display font-extrabold">94.2%</p>
+                    <p class="stat-label mt-1">Độ chính xác OCR</p>
+                </div>
+
+                <div class="stat-card rounded-2xl p-5 glow-hover float-anim-delay2 cursor-default">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="stat-icon-wrap w-11 h-11 rounded-xl bg-amber-200/60 dark:bg-amber-400/25 flex items-center justify-center">
+                            <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-700 dark:text-amber-300"></i>
+                        </div>
+                        <span class="text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-900/60 px-2.5 py-1 rounded-full">Thấp</span>
+                    </div>
+                    <p class="stat-value font-display font-extrabold" id="statErrors">0</p>
+                    <p class="stat-label mt-1">Lỗi nhận dạng</p>
+                </div>
+
+                <div class="stat-card rounded-2xl p-5 glow-hover float-anim cursor-default">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="stat-icon-wrap w-11 h-11 rounded-xl bg-emerald-200/60 dark:bg-emerald-400/25 flex items-center justify-center">
+                            <i data-lucide="activity" class="w-5 h-5 text-emerald-700 dark:text-emerald-300"></i>
+                        </div>
+                        <span class="text-xs font-semibold text-emerald-700 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/60 px-2.5 py-1 rounded-full flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span> Live
+                        </span>
+                    </div>
+                    <p class="stat-value font-display font-extrabold" id="statToday">0</p>
+                    <p class="stat-label mt-1">Hoạt động hôm nay</p>
+                </div>
+            </section>
+
+            <section id="adminHealthSection" class="hidden mb-10">
+                <div class="glass rounded-3xl p-6 border border-primary/20">
+                    <div class="flex items-center justify-between gap-3 mb-4">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-9 h-9 rounded-xl bg-primary/15 dark:bg-primary/25 flex items-center justify-center">
+                                <i data-lucide="database-zap" class="w-4.5 h-4.5 text-primary"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-display text-lg font-bold">Trạng thái cơ sở dữ liệu</h3>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">Chỉ hiển thị cho quản trị viên</p>
+                            </div>
+                        </div>
+                        <span id="dbHealthBadge" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-200/70 dark:bg-dark-700/80 text-slate-600 dark:text-slate-300">Đang kiểm tra...</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                        <div class="rounded-2xl bg-slate-100/70 dark:bg-dark-800/80 border border-slate-200 dark:border-dark-700 p-4">
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Backend DB</p>
+                            <p id="dbBackendValue" class="font-bold text-slate-800 dark:text-slate-100">-</p>
+                        </div>
+                        <div class="rounded-2xl bg-slate-100/70 dark:bg-dark-800/80 border border-slate-200 dark:border-dark-700 p-4">
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Database</p>
+                            <p id="dbNameValue" class="font-bold text-slate-800 dark:text-slate-100">-</p>
+                        </div>
+                        <div class="rounded-2xl bg-slate-100/70 dark:bg-dark-800/80 border border-slate-200 dark:border-dark-700 p-4">
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Độ trễ kết nối</p>
+                            <p id="dbPingValue" class="font-bold text-slate-800 dark:text-slate-100">-</p>
+                        </div>
+                    </div>
+
+                    <p id="dbHealthMeta" class="mt-3 text-xs text-slate-500 dark:text-slate-400">Lần kiểm tra gần nhất: -</p>
+                    <p id="dbHealthError" class="hidden mt-2 text-xs text-red-500 dark:text-red-300"></p>
+                </div>
+            </section>
+
+            <!-- Upload / Scan Area -->
+            <section id="uploadSection" class="mb-10">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-8 h-8 rounded-lg bg-primary/15 dark:bg-primary/25 flex items-center justify-center">
+                        <i data-lucide="upload-cloud" class="w-4 h-4 text-primary"></i>
+                    </div>
+                    <h3 class="font-display text-xl font-bold">Quét đơn thuốc</h3>
+                </div>
+
+                <input type="file" id="fileInput" accept="image/*" class="hidden" multiple/>
+
+                <div id="uploadArea" class="upload-zone relative rounded-3xl border-2 border-dashed p-12 flex flex-col items-center justify-center cursor-pointer min-h-[280px] group">
+                    <!-- Scanner animation overlay (hidden by default) -->
+                    <div id="scanOverlay" class="hidden absolute inset-0 rounded-3xl overflow-hidden z-10">
+                        <div class="scan-line"></div>
+                        <div class="absolute inset-0 bg-primary/5"></div>
+                    </div>
+
+                    <div class="upload-icon w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center mb-5 transition-transform">
+                        <i data-lucide="scan-line" class="w-10 h-10 text-primary"></i>
+                    </div>
+                    <h3 class="font-display text-2xl font-extrabold mb-2 text-slate-900 dark:text-slate-100">Tải lên đơn thuốc</h3>
+                    <div class="click-hint mb-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-extrabold uppercase tracking-wide">
+                        <i data-lucide="mouse-pointer-click" class="w-4 h-4"></i>
+                        Ấn vào vùng này để quét đơn thuốc
+                    </div>
+                    <p class="text-slate-700 dark:text-slate-100 text-center max-w-md font-bold text-base">Kéo và thả ảnh đơn thuốc tại đây hoặc nhấp để chọn tệp từ thiết bị</p>
+                    <p class="text-sm text-slate-600 dark:text-slate-200 mt-3 flex items-center gap-2 font-semibold">
+                        <i data-lucide="image" class="w-3.5 h-3.5"></i>
+                        PNG, JPG, JPEG, BMP, TIFF
+                    </p>
+                </div>
+
+                <!-- Preview -->
+                <div id="previewContainer" class="hidden mt-6">
+                    <div class="glass rounded-3xl p-6 glow-teal">
+                        <div class="flex items-center justify-between mb-5">
+                            <h3 class="font-display font-bold text-lg flex items-center gap-2">
+                                <i data-lucide="image" class="w-5 h-5 text-primary"></i>
+                                Ảnh đã chọn
+                            </h3>
+                            <span id="selectedCount" class="text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full hidden">1 ảnh</span>
+                            <button id="clearBtn" class="text-sm text-red-500 hover:text-red-600 font-semibold flex items-center gap-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 px-3 py-1.5 rounded-lg transition-all">
+                                <i data-lucide="x" class="w-4 h-4"></i> Xóa
+                            </button>
+                        </div>
+                        <div class="relative rounded-2xl overflow-hidden bg-slate-100 dark:bg-dark-800">
+                            <img id="preview" class="max-w-full max-h-[320px] mx-auto block" alt="Preview"/>
+                        </div>
+                        <button id="submitBtn" disabled class="btn-primary mt-6 w-full flex items-center justify-center gap-3 bg-gradient-to-r from-primary to-primary-600 disabled:from-slate-300 disabled:to-slate-300 dark:disabled:from-dark-700 dark:disabled:to-dark-700 disabled:cursor-not-allowed text-white px-8 py-4 rounded-2xl font-bold text-lg shadow-xl shadow-primary/20 disabled:shadow-none">
+                            <i id="submitIcon" data-lucide="zap" class="w-5 h-5"></i>
+                            <span id="submitText">Nhận dạng văn bản</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Error -->
+                <div id="error" class="hidden mt-5 p-4 glass border border-red-200 dark:border-red-800/40 rounded-2xl text-red-600 dark:text-red-400 text-center font-semibold flex items-center justify-center gap-2">
+                    <i data-lucide="alert-circle" class="w-5 h-5 flex-shrink-0"></i>
+                    <span id="errorText"></span>
+                </div>
+
+                <div id="cropModal" class="fixed inset-0 z-[80] hidden bg-slate-900/75 backdrop-blur-sm p-4 sm:p-6" aria-hidden="true">
+                    <div id="cropModalCard" class="mx-auto max-w-4xl h-full sm:h-auto sm:max-h-[90vh] bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-2xl flex flex-col overflow-hidden">
+                        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                            <h3 class="font-display text-lg sm:text-xl font-bold flex items-center gap-2">
+                                <i data-lucide="crop" class="w-5 h-5 text-primary"></i>
+                                Cắt vùng đơn thuốc
+                            </h3>
+                            <button id="cropCancelBtn" class="px-3 py-1.5 rounded-lg text-sm font-semibold text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition">Hủy chọn</button>
+                        </div>
+                        <div class="px-5 pt-4 text-sm text-slate-600 dark:text-slate-300 font-medium">
+                            Kéo khung để chọn đúng vùng cần OCR, loại bỏ nền và phần không liên quan.
+                        </div>
+                        <div class="p-4 sm:p-5 h-[48vh] sm:h-[56vh] bg-slate-100/80 dark:bg-slate-800/60 overflow-hidden">
+                            <img id="cropImage" alt="Ảnh cần cắt" class="max-w-full max-h-full mx-auto block"/>
+                        </div>
+                        <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+                            <button id="cropRotateLeftBtn" class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition">Xoay trái</button>
+                            <button id="cropRotateRightBtn" class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition">Xoay phải</button>
+                            <button id="cropResetBtn" class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition">Đặt lại</button>
+                            <button id="cropUseOriginalBtn" class="px-3 py-2 rounded-xl border border-primary/50 text-primary text-sm font-semibold hover:bg-primary/10 transition">Dùng ảnh gốc</button>
+                            <button id="cropApplyBtn" class="px-4 py-2 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary-600 transition">Áp dụng cắt</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Result -->
+                <div id="result" class="hidden mt-6">
+                    <div class="glass rounded-3xl p-6 glow-teal">
+                        <div class="flex items-center justify-between mb-5">
+                            <h3 class="font-display font-bold text-lg flex items-center gap-2">
+                                <i data-lucide="file-text" class="w-5 h-5 text-primary"></i>
+                                Kết quả nhận dạng
+                            </h3>
+                            <div class="flex items-center gap-2">
+                                <button id="savePdfBtn" class="text-sm text-secondary hover:bg-secondary/10 font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all">
+                                    <i data-lucide="file-down" class="w-4 h-4"></i> Lưu PDF
+                                </button>
+                                <button id="deleteResultBtn" class="text-sm text-red-500 hover:bg-red-500/10 font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i> Xóa
+                                </button>
+                            </div>
+                        </div>
+                        <div id="resultStructured" class="space-y-3"></div>
+                        <pre id="resultText" class="hidden whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700 dark:text-slate-300 bg-slate-50/80 dark:bg-dark-900/80 p-6 rounded-2xl border border-slate-100 dark:border-dark-700 font-body"></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Recent Prescriptions -->
+            <section id="historySection" class="mb-8 hidden">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
+                            <i data-lucide="history" class="w-4 h-4 text-secondary"></i>
+                        </div>
+                        <h3 class="font-display text-xl font-bold">Đơn thuốc gần đây</h3>
+                    </div>
+                </div>
+
+                <div id="recentGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                    <div class="text-center text-slate-400 col-span-full py-16">
+                        <i data-lucide="inbox" class="w-14 h-14 mx-auto mb-3 opacity-40"></i>
+                        <p class="font-medium">Chưa có đơn thuốc nào được quét</p>
+                        <p class="text-sm mt-1">Bắt đầu bằng cách tải lên ảnh đơn thuốc</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Lookup History -->
+            <section id="lookupHistorySection" class="hidden">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-primary/15 dark:bg-primary/25 flex items-center justify-center">
+                            <i data-lucide="search" class="w-4 h-4 text-primary"></i>
+                        </div>
+                        <h3 class="font-display text-xl font-bold">Lịch sử tra cứu</h3>
+                    </div>
+                    <button id="clearHistoryBtn" class="hidden text-sm text-slate-400 hover:text-red-500 font-medium flex items-center gap-1.5 transition-colors">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i> Xóa lịch sử
+                    </button>
+                </div>
+                <div class="mb-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">Từ ngày</label>
+                        <input id="historyDateFrom" type="date" class="w-full rounded-xl bg-slate-100/80 dark:bg-dark-800/80 border border-slate-200 dark:border-dark-700 px-3 py-2.5 text-sm outline-none focus:border-primary/40" />
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">Đến ngày</label>
+                        <input id="historyDateTo" type="date" class="w-full rounded-xl bg-slate-100/80 dark:bg-dark-800/80 border border-slate-200 dark:border-dark-700 px-3 py-2.5 text-sm outline-none focus:border-primary/40" />
+                    </div>
+                    <div class="flex items-end">
+                        <button id="historyFilterClearBtn" type="button" class="w-full rounded-xl border border-slate-300 dark:border-dark-700 bg-white/80 dark:bg-dark-800/80 px-3 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:border-primary/40 hover:text-primary transition-all">Xóa bộ lọc</button>
+                    </div>
+                </div>
+                <div id="historyGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                    <div class="text-center text-slate-400 col-span-full py-16">
+                        <i data-lucide="search" class="w-14 h-14 mx-auto mb-3 opacity-40"></i>
+                        <p class="font-medium">Tra cứu đơn thuốc theo từ khóa hoặc thời gian</p>
+                        <p class="text-sm mt-1">Kết quả tra cứu sẽ hiển thị tại đây</p>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+</div>
+
+<script>
+// ===================== INITIALIZE LUCIDE ICONS =====================
+lucide.createIcons();
+
+// ===================== NEURAL NETWORK BACKGROUND =====================
+const canvas = document.getElementById('neuralCanvas');
+const ctx = canvas.getContext('2d');
+let particles = [];
+let mouseX = 0, mouseY = 0;
+
+function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+class Particle {
+    constructor() { this.reset(); }
+    reset() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.vx = (Math.random() - 0.5) * 0.4;
+        this.vy = (Math.random() - 0.5) * 0.4;
+        this.radius = Math.random() * 2 + 0.5;
+        this.opacity = Math.random() * 0.4 + 0.1;
+    }
+    update() {
+        this.x += this.vx; this.y += this.vy;
+        if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+        if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+        // subtle mouse repel
+        const dx = this.x - mouseX, dy = this.y - mouseY;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < 120) { this.x += dx * 0.01; this.y += dy * 0.01; }
+    }
+    draw() {
+        const isDark = document.documentElement.classList.contains('dark');
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = isDark ? `rgba(14,165,164,${this.opacity})` : `rgba(14,165,164,${this.opacity * 0.6})`;
+        ctx.fill();
+    }
+}
+
+for (let i = 0; i < 80; i++) particles.push(new Particle());
+
+function drawConnections() {
+    const isDark = document.documentElement.classList.contains('dark');
+    for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+            const dx = particles[i].x - particles[j].x;
+            const dy = particles[i].y - particles[j].y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < 150) {
+                const alpha = (1 - dist / 150) * (isDark ? 0.12 : 0.06);
+                ctx.beginPath();
+                ctx.moveTo(particles[i].x, particles[i].y);
+                ctx.lineTo(particles[j].x, particles[j].y);
+                ctx.strokeStyle = `rgba(14,165,164,${alpha})`;
+                ctx.lineWidth = 0.5;
+                ctx.stroke();
+            }
+        }
+    }
+}
+
+function animateParticles() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => { p.update(); p.draw(); });
+    drawConnections();
+    requestAnimationFrame(animateParticles);
+}
+animateParticles();
+
+// ===================== MOUSE LIGHT EFFECT =====================
+const mouseLight = document.getElementById('mouseLight');
+document.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX; mouseY = e.clientY;
+    mouseLight.style.left = e.clientX + 'px';
+    mouseLight.style.top = e.clientY + 'px';
+    mouseLight.style.opacity = '1';
+});
+document.addEventListener('mouseleave', () => { mouseLight.style.opacity = '0'; });
+
+// ===================== DARK MODE TOGGLE =====================
+const themeToggle = document.getElementById('themeToggle');
+const savedTheme = localStorage.getItem('theme');
+if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    document.documentElement.classList.add('dark');
+}
+themeToggle.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    lucide.createIcons();
+});
+
+// ===================== LOGO CLICK PULSE =====================
+const logoIcon = document.getElementById('logoIcon');
+if (logoIcon) {
+    logoIcon.addEventListener('click', () => {
+        logoIcon.classList.remove('logo-pulse');
+        void logoIcon.offsetWidth; // restart animation
+        logoIcon.classList.add('logo-pulse');
+    });
+}
+
+// ===================== SIDEBAR COLLAPSE =====================
+const sidebar = document.getElementById('sidebar');
+const mainArea = document.getElementById('mainArea');
+const collapseBtn = document.getElementById('collapseBtn');
+const collapseBtnIcon = document.getElementById('collapseBtnIcon');
+let sidebarCollapsed = false;
+collapseBtn.addEventListener('click', () => {
+    sidebarCollapsed = !sidebarCollapsed;
+    sidebar.classList.toggle('collapsed');
+    mainArea.style.marginLeft = sidebarCollapsed ? '80px' : '260px';
+    // Xoay viên thuốc 180° khi thu gọn để chỉ hướng "mở ra"
+    collapseBtnIcon.style.transform = sidebarCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+    collapseBtnIcon.style.transition = 'transform 0.4s cubic-bezier(0.4,0,0.2,1)';
+    collapseBtn.title = sidebarCollapsed ? 'Mở rộng thanh công cụ' : 'Thu gọn thanh công cụ';
+});
+
+// ===================== GSAP ENTRANCE ANIMATIONS =====================
+gsap.from('.stat-card', { y: 40, opacity: 0, duration: 0.8, stagger: 0.15, ease: 'power3.out', delay: 0.3 });
+gsap.from('.upload-zone', { y: 30, opacity: 0, duration: 0.8, ease: 'power3.out', delay: 0.7 });
+gsap.from('.feature-card', { y: 24, duration: 0.6, stagger: 0.08, ease: 'power3.out', delay: 0.45 });
+gsap.from('.guide-step', { y: 20, duration: 0.55, stagger: 0.08, ease: 'power3.out', delay: 0.55 });
+
+// ===================== OCR FUNCTIONALITY =====================
+const uploadArea = document.getElementById('uploadArea');
+const historySearchInput = document.getElementById('historySearchInput');
+const historyDateFromInput = document.getElementById('historyDateFrom');
+const historyDateToInput = document.getElementById('historyDateTo');
+const historyFilterClearBtn = document.getElementById('historyFilterClearBtn');
+const fileInput = document.getElementById('fileInput');
+const preview = document.getElementById('preview');
+const selectedCount = document.getElementById('selectedCount');
+const previewContainer = document.getElementById('previewContainer');
+const submitBtn = document.getElementById('submitBtn');
+const submitIcon = document.getElementById('submitIcon');
+const submitText = document.getElementById('submitText');
+const error = document.getElementById('error');
+const errorText = document.getElementById('errorText');
+const result = document.getElementById('result');
+const resultText = document.getElementById('resultText');
+const resultStructured = document.getElementById('resultStructured');
+const clearBtn = document.getElementById('clearBtn');
+const deleteResultBtn = document.getElementById('deleteResultBtn');
+const savePdfBtn = document.getElementById('savePdfBtn');
+const recentGrid = document.getElementById('recentGrid');
+const historyGrid = document.getElementById('historyGrid');
+const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+const scanOverlay = document.getElementById('scanOverlay');
+const authModal = document.getElementById('authModal');
+const authModalCard = document.getElementById('authModalCard');
+const authModalClose = document.getElementById('authModalClose');
+const authModalLogin = document.getElementById('authModalLogin');
+const deleteConfirmModal = document.getElementById('deleteConfirmModal');
+const deleteConfirmCard = document.getElementById('deleteConfirmCard');
+const deleteConfirmText = document.getElementById('deleteConfirmText');
+const deleteCancelBtn = document.getElementById('deleteCancelBtn');
+const deleteConfirmBtn = document.getElementById('deleteConfirmBtn');
+const scanErrorModal = document.getElementById('scanErrorModal');
+const scanErrorCard = document.getElementById('scanErrorCard');
+const scanErrorText = document.getElementById('scanErrorText');
+const scanErrorCloseBtn = document.getElementById('scanErrorCloseBtn');
+const cropModal = document.getElementById('cropModal');
+const cropModalCard = document.getElementById('cropModalCard');
+const cropImage = document.getElementById('cropImage');
+const cropCancelBtn = document.getElementById('cropCancelBtn');
+const cropApplyBtn = document.getElementById('cropApplyBtn');
+const cropUseOriginalBtn = document.getElementById('cropUseOriginalBtn');
+const cropResetBtn = document.getElementById('cropResetBtn');
+const cropRotateLeftBtn = document.getElementById('cropRotateLeftBtn');
+const cropRotateRightBtn = document.getElementById('cropRotateRightBtn');
+const scanToastStack = document.getElementById('scanToastStack');
+const notificationBtn = document.getElementById('notificationBtn');
+const notificationDot = document.getElementById('notificationDot');
+const notificationPanel = document.getElementById('notificationPanel');
+const notificationList = document.getElementById('notificationList');
+const notificationEmpty = document.getElementById('notificationEmpty');
+const notificationClearBtn = document.getElementById('notificationClearBtn');
+const adminHealthSection = document.getElementById('adminHealthSection');
+const dbHealthBadge = document.getElementById('dbHealthBadge');
+const dbBackendValue = document.getElementById('dbBackendValue');
+const dbNameValue = document.getElementById('dbNameValue');
+const dbPingValue = document.getElementById('dbPingValue');
+const dbHealthMeta = document.getElementById('dbHealthMeta');
+const dbHealthError = document.getElementById('dbHealthError');
+let isAuthenticated = false;
+let currentUserRole = 'guest';
+let dbHealthTimerId = null;
+
+function showAuthRequiredModal() {
+    authModal.classList.remove('hidden');
+    authModal.setAttribute('aria-hidden', 'false');
+    gsap.fromTo(authModalCard, { y: 20, opacity: 0, scale: 0.96 }, { y: 0, opacity: 1, scale: 1, duration: 0.35, ease: 'power3.out' });
+}
+
+function showScanErrorModal(message) {
+    scanErrorText.textContent = message || 'Hình ảnh của bạn không thể quét. Vui lòng chọn ảnh đơn thuốc rõ chữ.';
+    scanErrorModal.classList.remove('hidden');
+    scanErrorModal.setAttribute('aria-hidden', 'false');
+    gsap.fromTo(scanErrorCard, { y: 18, opacity: 0, scale: 0.96 }, { y: 0, opacity: 1, scale: 1, duration: 0.3, ease: 'power3.out' });
+}
+
+function getScanTimestampLabel() {
+    const now = new Date();
+    return `${now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} • ${now.toLocaleDateString('vi-VN')}`;
+}
+
+function showScanToast(type, title, message, options = {}) {
+    if (!scanToastStack) return;
+    addNotificationRecord(type, title, message, options);
+
+    const safeType = type === 'error' ? 'error' : 'success';
+    const iconName = safeType === 'success' ? 'check-circle-2' : 'alert-triangle';
+    const iconColor = safeType === 'success' ? 'text-emerald-600 dark:text-emerald-300' : 'text-red-600 dark:text-red-300';
+
+    const toast = document.createElement('div');
+    toast.className = `scan-toast ${safeType}`;
+    toast.innerHTML = `
+        <div class="flex items-start gap-3">
+            <i data-lucide="${iconName}" class="w-5 h-5 mt-0.5 ${iconColor} flex-shrink-0"></i>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-extrabold text-slate-900 dark:text-slate-100">${escapeHtml(title || 'Thông báo quét')}</p>
+                <p class="text-sm text-slate-700 dark:text-slate-300 mt-0.5 leading-relaxed">${escapeHtml(message || '')}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1.5">${getScanTimestampLabel()}</p>
+            </div>
+        </div>
+    `;
+
+    scanToastStack.prepend(toast);
+    lucide.createIcons();
+    gsap.fromTo(toast, { y: -10, opacity: 0, scale: 0.98 }, { y: 0, opacity: 1, scale: 1, duration: 0.26, ease: 'power3.out' });
+
+    setTimeout(() => {
+        gsap.to(toast, {
+            y: -8,
+            opacity: 0,
+            duration: 0.22,
+            ease: 'power2.in',
+            onComplete: () => toast.remove()
+        });
+    }, 4600);
+}
+
+function formatNotificationTime(ts) {
+    const date = new Date(ts);
+    if (Number.isNaN(date.getTime())) return '';
+    return `${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} • ${date.toLocaleDateString('vi-VN')}`;
+}
+
+function saveNotifications() {
+    sessionStorage.setItem('scanNotifications', JSON.stringify(scanNotifications));
+}
+
+function updateNotificationBadge() {
+    if (!notificationDot) return;
+    if (unreadNotificationCount > 0) {
+        notificationDot.classList.remove('hidden');
+    } else {
+        notificationDot.classList.add('hidden');
+    }
+}
+
+function renderNotificationList() {
+    if (!notificationList || !notificationEmpty) return;
+
+    if (scanNotifications.length === 0) {
+        notificationList.innerHTML = '';
+        notificationEmpty.classList.remove('hidden');
+        return;
+    }
+
+    notificationEmpty.classList.add('hidden');
+    notificationList.innerHTML = scanNotifications.map((item) => {
+        const iconName = item.type === 'error' ? 'alert-triangle' : 'check-circle-2';
+        const iconColor = item.type === 'error' ? 'text-red-600 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-300';
+        const clickableClass = item.targetHistoryId ? ' cursor-pointer hover:border-primary/45 hover:bg-primary/5 dark:hover:bg-primary/10 transition-all' : '';
+        const dataAttr = item.targetHistoryId ? ` data-history-id="${item.targetHistoryId}"` : '';
+        const hintText = item.targetHistoryId
+            ? '<p class="text-[11px] text-primary dark:text-teal-300 mt-1 font-semibold">Nhấn để mở đơn thuốc</p>'
+            : '';
+        return `
+            <div class="notify-item${clickableClass}"${dataAttr}>
+                <div class="flex items-start gap-2.5">
+                    <i data-lucide="${iconName}" class="w-4 h-4 mt-0.5 ${iconColor} flex-shrink-0"></i>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(item.title || 'Thông báo quét')}</p>
+                        <p class="text-sm text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">${escapeHtml(item.message || '')}</p>
+                        ${hintText}
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1.5">${formatNotificationTime(item.timestamp)}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    lucide.createIcons();
+}
+
+function addNotificationRecord(type, title, message, options = {}) {
+    const safeType = type === 'error' ? 'error' : 'success';
+    scanNotifications.unshift({
+        id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        type: safeType,
+        title: title || 'Thông báo quét',
+        message: message || '',
+        timestamp: new Date().toISOString(),
+        targetHistoryId: options.targetHistoryId || null
+    });
+    if (scanNotifications.length > 80) {
+        scanNotifications = scanNotifications.slice(0, 80);
+    }
+    unreadNotificationCount += 1;
+    saveNotifications();
+    renderNotificationList();
+    updateNotificationBadge();
+}
+
+function markNotificationsRead() {
+    unreadNotificationCount = 0;
+    updateNotificationBadge();
+}
+
+function toggleNotificationPanel(forceOpen = null) {
+    if (!notificationPanel || !notificationBtn) return;
+    const shouldOpen = forceOpen === null ? notificationPanel.classList.contains('hidden') : !!forceOpen;
+    if (shouldOpen) {
+        notificationPanel.classList.remove('hidden');
+        notificationBtn.setAttribute('aria-expanded', 'true');
+        renderNotificationList();
+        markNotificationsRead();
+    } else {
+        notificationPanel.classList.add('hidden');
+        notificationBtn.setAttribute('aria-expanded', 'false');
+    }
+}
+
+function initNotifications() {
+    try {
+        const raw = sessionStorage.getItem('scanNotifications');
+        const parsed = raw ? JSON.parse(raw) : [];
+        scanNotifications = Array.isArray(parsed) ? parsed.slice(0, 80) : [];
+    } catch (err) {
+        scanNotifications = [];
+    }
+    unreadNotificationCount = 0;
+    renderNotificationList();
+    updateNotificationBadge();
+}
+
+function hideScanErrorModal() {
+    gsap.to(scanErrorCard, {
+        y: 10,
+        opacity: 0,
+        scale: 0.97,
+        duration: 0.22,
+        ease: 'power2.in',
+        onComplete: () => {
+            scanErrorModal.classList.add('hidden');
+            scanErrorModal.setAttribute('aria-hidden', 'true');
+            gsap.set(scanErrorCard, { clearProps: 'all' });
+        }
+    });
+}
+
+function hideAuthRequiredModal() {
+    gsap.to(authModalCard, {
+        y: 14,
+        opacity: 0,
+        scale: 0.97,
+        duration: 0.24,
+        ease: 'power2.in',
+        onComplete: () => {
+            authModal.classList.add('hidden');
+            authModal.setAttribute('aria-hidden', 'true');
+            gsap.set(authModalCard, { clearProps: 'all' });
+        }
+    });
+}
+
+function requireLogin() {
+    showAuthRequiredModal();
+}
+
+function ensureAuthenticated() {
+    if (!isAuthenticated) {
+        requireLogin();
+        return false;
+    }
+    return true;
+}
+
+function goToUploadSection(event) {
+    if (event) event.preventDefault();
+    scrollToAppSection('uploadSection');
+}
+
+function scrollToAppSection(sectionId, event) {
+    if (event) event.preventDefault();
+    const container = document.getElementById('mainContent');
+    const target = document.getElementById(sectionId);
+    if (!target) return;
+
+    const canScrollContainer = container && container.scrollHeight > container.clientHeight + 4;
+    if (canScrollContainer) {
+        const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 12;
+        container.scrollTo({ top: Math.max(top, 0), behavior: 'smooth' });
+        return;
+    }
+
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+authModalClose.addEventListener('click', hideAuthRequiredModal);
+authModalLogin.addEventListener('click', () => {
+    window.location.href = '/login';
+});
+authModal.addEventListener('click', (event) => {
+    if (event.target === authModal) hideAuthRequiredModal();
+});
+scanErrorCloseBtn.addEventListener('click', hideScanErrorModal);
+scanErrorModal.addEventListener('click', (event) => {
+    if (event.target === scanErrorModal) hideScanErrorModal();
+});
+notificationBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleNotificationPanel();
+});
+notificationClearBtn.addEventListener('click', () => {
+    scanNotifications = [];
+    unreadNotificationCount = 0;
+    saveNotifications();
+    renderNotificationList();
+    updateNotificationBadge();
+});
+document.addEventListener('click', (event) => {
+    if (!notificationPanel || notificationPanel.classList.contains('hidden')) return;
+    const target = event.target;
+    if (notificationPanel.contains(target) || notificationBtn.contains(target)) return;
+    toggleNotificationPanel(false);
+});
+notificationList.addEventListener('click', async (event) => {
+    const item = event.target.closest('.notify-item[data-history-id]');
+    if (!item) return;
+    const historyId = Number(item.dataset.historyId);
+    if (!historyId) return;
+    await openHistoryFromNotification(historyId);
+});
+
+let selectedFiles = [];
+let scanHistory = [];
+let historySearchTerm = '';
+let historyDateFrom = '';
+let historyDateTo = '';
+let currentResultFilename = '';
+let currentResultHistoryId = null;
+let currentUserFullname = '';
+let currentUserPhone = '';
+let currentUserAvatarUrl = '';
+let scanErrorCount = 0;
+let scanNotifications = [];
+let unreadNotificationCount = 0;
+let imageCropper = null;
+let pendingCropFile = null;
+initNotifications();
+updateStats();
+renderHistory();
+
+
+function getNextAutoPrescriptionName(usedNamesInput = null) {
+    const baseName = 'Đơn thuốc mới';
+    const usedNames = new Set(
+        usedNamesInput
+            ? Array.from(usedNamesInput)
+            : (scanHistory || []).map((item) => (item && item.filename ? String(item.filename).trim() : '')).filter(Boolean)
+    );
+
+    let maxSuffix = -1;
+    usedNames.forEach((name) => {
+        if (name === baseName) {
+            maxSuffix = Math.max(maxSuffix, 0);
+            return;
+        }
+        const match = name.match(/^Đơn thuốc mới\s*\((\d+)\)$/i);
+        if (match) {
+            const value = Number(match[1]);
+            if (Number.isFinite(value)) {
+                maxSuffix = Math.max(maxSuffix, value);
+            }
+        }
+    });
+
+    if (maxSuffix < 0) return baseName;
+    return `${baseName} (${maxSuffix + 1})`;
+}
+
+uploadArea.addEventListener('click', () => {
+    if (!ensureAuthenticated()) return;
+    fileInput.click();
+});
+uploadArea.addEventListener('dragenter', (e) => { e.preventDefault(); });
+uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault(); uploadArea.classList.remove('dragover');
+    if (!ensureAuthenticated()) return;
+    if (e.dataTransfer.files.length > 0) handleFiles(Array.from(e.dataTransfer.files));
+});
+fileInput.addEventListener('change', () => {
+    if (!ensureAuthenticated()) {
+        fileInput.value = '';
+        return;
+    }
+    if (fileInput.files.length > 0) handleFiles(Array.from(fileInput.files));
+});
+
+function destroyCropper() {
+    if (imageCropper) {
+        imageCropper.destroy();
+        imageCropper = null;
+    }
+}
+
+function hideCropModal(shouldClearPending = true) {
+    destroyCropper();
+    cropModal.classList.add('hidden');
+    cropModal.setAttribute('aria-hidden', 'true');
+    if (shouldClearPending) pendingCropFile = null;
+}
+
+function setSelectedFilesForPreview(files) {
+    selectedFiles = files.filter((file) => file && file.type && file.type.startsWith('image/'));
+    if (selectedFiles.length === 0) {
+        showError('Vui lòng chọn file ảnh hợp lệ.');
+        return;
+    }
+
+    const firstFile = selectedFiles[0];
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        preview.src = e.target.result;
+        uploadArea.classList.add('hidden');
+        previewContainer.classList.remove('hidden');
+        if (selectedFiles.length > 1) {
+            selectedCount.textContent = `${selectedFiles.length} ảnh`;
+            selectedCount.classList.remove('hidden');
+        } else {
+            selectedCount.textContent = '1 ảnh';
+            selectedCount.classList.add('hidden');
+        }
+        gsap.from(previewContainer, { y: 20, opacity: 0, duration: 0.5, ease: 'power3.out' });
+    };
+    reader.readAsDataURL(firstFile);
+    submitBtn.disabled = false;
+    error.classList.add('hidden');
+    result.classList.add('hidden');
+}
+
+function openCropModalForFile(file) {
+    if (typeof Cropper !== 'function') {
+        setSelectedFilesForPreview([file]);
+        showScanToast('error', 'Không tải được công cụ cắt', 'Không mở được công cụ cắt ảnh, hệ thống sẽ dùng ảnh gốc.');
+        return;
+    }
+
+    pendingCropFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        cropImage.onload = () => {
+            destroyCropper();
+            imageCropper = new Cropper(cropImage, {
+                viewMode: 0,
+                dragMode: 'move',
+                autoCropArea: 0.7,
+                responsive: true,
+                background: false,
+                guides: true,
+                center: true,
+                highlight: true,
+                movable: true,
+                zoomable: true,
+                rotatable: true,
+                scalable: true,
+                minContainerWidth: 280,
+                minContainerHeight: 260,
+                ready() {
+                    const containerData = this.cropper.getContainerData();
+                    const imageData = this.cropper.getImageData();
+                    const fitRatio = Math.min(
+                        containerData.width / imageData.naturalWidth,
+                        containerData.height / imageData.naturalHeight
+                    );
+
+                    if (Number.isFinite(fitRatio) && fitRatio > 0) {
+                        this.cropper.zoomTo(fitRatio);
+                    }
+                }
+            });
+        };
+        cropImage.src = e.target.result;
+        cropModal.classList.remove('hidden');
+        cropModal.setAttribute('aria-hidden', 'false');
+        gsap.fromTo(cropModalCard, { y: 18, opacity: 0, scale: 0.98 }, { y: 0, opacity: 1, scale: 1, duration: 0.25, ease: 'power3.out' });
+    };
+    reader.readAsDataURL(file);
+}
+
+function handleFiles(files) {
+    const imageFiles = files.filter((file) => file && file.type && file.type.startsWith('image/'));
+    if (imageFiles.length === 0) {
+        showError('Vui lòng chọn file ảnh hợp lệ.');
+        return;
+    }
+
+    if (imageFiles.length === 1) {
+        openCropModalForFile(imageFiles[0]);
+        return;
+    }
+
+    setSelectedFilesForPreview(imageFiles);
+    showScanToast('success', 'Đã chọn ảnh', 'Bạn đang chọn nhiều ảnh nên hệ thống sẽ quét theo lô (không cắt từng ảnh).');
+}
+
+cropCancelBtn.addEventListener('click', () => {
+    hideCropModal();
+    fileInput.value = '';
+});
+
+cropUseOriginalBtn.addEventListener('click', () => {
+    if (!pendingCropFile) return;
+    setSelectedFilesForPreview([pendingCropFile]);
+    hideCropModal();
+});
+
+cropResetBtn.addEventListener('click', () => {
+    if (imageCropper) imageCropper.reset();
+});
+
+cropRotateLeftBtn.addEventListener('click', () => {
+    if (imageCropper) imageCropper.rotate(-90);
+});
+
+cropRotateRightBtn.addEventListener('click', () => {
+    if (imageCropper) imageCropper.rotate(90);
+});
+
+cropApplyBtn.addEventListener('click', () => {
+    if (!imageCropper || !pendingCropFile) return;
+
+    const canvas = imageCropper.getCroppedCanvas({
+        maxWidth: 2600,
+        maxHeight: 2600,
+        fillColor: '#ffffff',
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high'
+    });
+
+    if (!canvas) {
+        showError('Không thể cắt ảnh, vui lòng thử lại.');
+        return;
+    }
+
+    canvas.toBlob((blob) => {
+        if (!blob) {
+            showError('Không thể tạo ảnh sau khi cắt, vui lòng thử lại.');
+            return;
+        }
+
+        const ext = pendingCropFile.name && pendingCropFile.name.includes('.')
+            ? pendingCropFile.name.slice(pendingCropFile.name.lastIndexOf('.'))
+            : '.jpg';
+        const croppedName = pendingCropFile.name
+            ? pendingCropFile.name.replace(/(\.[^.]+)?$/, `_cropped${ext}`)
+            : `cropped_${Date.now()}.jpg`;
+
+        const croppedFile = new File([blob], croppedName, {
+            type: blob.type || 'image/jpeg',
+            lastModified: Date.now()
+        });
+
+        setSelectedFilesForPreview([croppedFile]);
+        hideCropModal();
+    }, 'image/jpeg', 0.94);
+});
+
+cropModal.addEventListener('click', (event) => {
+    if (event.target !== cropModal) return;
+    hideCropModal();
+    fileInput.value = '';
+});
+
+clearBtn.addEventListener('click', () => {
+    hideCropModal();
+    selectedFiles = []; fileInput.value = '';
+    uploadArea.classList.remove('hidden');
+    selectedCount.classList.add('hidden');
+    previewContainer.classList.add('hidden');
+    result.classList.add('hidden');
+    error.classList.add('hidden');
+    submitBtn.disabled = true;
+    currentResultHistoryId = null;
+    if (resultStructured) resultStructured.innerHTML = '';
+});
+
+function openDeleteConfirmModal(message = 'Bạn có chắc chắn muốn xóa đơn thuốc này không?') {
+    deleteConfirmText.textContent = message;
+    deleteConfirmModal.classList.remove('hidden');
+    deleteConfirmModal.setAttribute('aria-hidden', 'false');
+    gsap.fromTo(deleteConfirmCard, { y: 18, opacity: 0, scale: 0.96 }, { y: 0, opacity: 1, scale: 1, duration: 0.3, ease: 'power3.out' });
+}
+
+function closeDeleteConfirmModal() {
+    gsap.to(deleteConfirmCard, {
+        y: 12,
+        opacity: 0,
+        scale: 0.97,
+        duration: 0.22,
+        ease: 'power2.in',
+        onComplete: () => {
+            deleteConfirmModal.classList.add('hidden');
+            deleteConfirmModal.setAttribute('aria-hidden', 'true');
+            gsap.set(deleteConfirmCard, { clearProps: 'all' });
+        }
+    });
+}
+
+function confirmDelete(message) {
+    return new Promise((resolve) => {
+        const cleanup = () => {
+            deleteCancelBtn.removeEventListener('click', onCancel);
+            deleteConfirmBtn.removeEventListener('click', onConfirm);
+            deleteConfirmModal.removeEventListener('click', onOverlayClick);
+        };
+
+        const onCancel = () => {
+            cleanup();
+            closeDeleteConfirmModal();
+            resolve(false);
+        };
+
+        const onConfirm = () => {
+            cleanup();
+            closeDeleteConfirmModal();
+            resolve(true);
+        };
+
+        const onOverlayClick = (event) => {
+            if (event.target !== deleteConfirmModal) return;
+            cleanup();
+            closeDeleteConfirmModal();
+            resolve(false);
+        };
+
+        deleteCancelBtn.addEventListener('click', onCancel, { once: true });
+        deleteConfirmBtn.addEventListener('click', onConfirm, { once: true });
+        deleteConfirmModal.addEventListener('click', onOverlayClick);
+        openDeleteConfirmModal(message);
+    });
+}
+
+deleteResultBtn.addEventListener('click', async () => {
+    if (!ensureAuthenticated()) return;
+
+    if (!currentResultHistoryId) {
+        showError('Hãy mở kết quả từ lịch sử để xóa đúng đơn thuốc cần xóa.');
+        return;
+    }
+
+    const accepted = await confirmDelete('Bạn có chắc chắn muốn xóa đơn thuốc đang xem? Thao tác này không thể hoàn tác.');
+    if (!accepted) return;
+
+    try {
+        const response = await fetch('/api/history', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: currentResultHistoryId })
+        });
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            showError(data.error || 'Không thể xóa đơn thuốc.');
+            return;
+        }
+
+        currentResultHistoryId = null;
+        currentResultFilename = '';
+        result.classList.add('hidden');
+        resultText.textContent = '';
+        if (resultStructured) resultStructured.innerHTML = '';
+        await loadHistory();
+        await loadSummaryStats();
+    } catch (err) {
+        showError('Không thể kết nối tới server để xóa đơn thuốc.');
+    }
+});
+
+savePdfBtn.addEventListener('click', async () => {
+    await refreshCurrentUserProfile();
+
+    const content = (resultText.textContent || '').trim();
+    if (!content) {
+        showError('Chưa có nội dung để lưu PDF.');
+        return;
+    }
+
+    if (!window.pdfMake || !window.pdfMake.createPdf) {
+        showError('Không tải được thư viện tạo PDF.');
+        return;
+    }
+
+    const rawLines = content
+        .split('\n')
+        .flatMap((line) => splitByMedicalFields(normalizeOcrLine(line)))
+        .filter((line) => line.length > 0);
+
+    const medicineRows = [];
+    const patientInfoRows = [];
+    const diagnosisRows = [];
+    let lastMedicineIndex = -1;
+
+    for (const line of rawLines) {
+        const medicine = tryParseMedicineRow(line);
+        if (medicine) {
+            medicineRows.push({
+                stt: medicine.stt || '',
+                name: medicine.name || '',
+                dosage: medicine.inlineDosage || '',
+                quantity: medicine.quantity || ''
+            });
+            lastMedicineIndex = medicineRows.length - 1;
+            continue;
+        }
+
+        if (lastMedicineIndex >= 0) {
+            const cleanDoseLine = line.replace(/^[-•*]\s*/, '').trim();
+            if (/^(Sáng|Sang|Trưa|Trua|Chiều|Chieu|Tối|Toi|Uống|Uong|Thoa|Bôi|Boi|Ngày|Ngay)\b/i.test(cleanDoseLine)) {
+                const currentDosage = medicineRows[lastMedicineIndex].dosage;
+                medicineRows[lastMedicineIndex].dosage = currentDosage ? `${currentDosage}; ${cleanDoseLine}` : cleanDoseLine;
+                continue;
+            }
+        }
+
+        if (/^(Chẩn đoán|Chuẩn đoán|Điều trị)\s*:/i.test(line)) {
+            diagnosisRows.push(line);
+            continue;
+        }
+
+        if (!/^(ĐƠN THUỐC|DON THUOC|Danh mục thuốc|STT)/i.test(line) &&
+            !/^[-•*]\s*(Sáng|Trưa|Chiều|Tối|Uống|Thoa|Bôi|Ngày)\b/i.test(line)) {
+            patientInfoRows.push(line);
+        }
+    }
+
+    const infoBody = buildCompactInfoBody(patientInfoRows);
+
+    const diagnosisBody = diagnosisRows.length > 0
+        ? diagnosisRows.map((line, index) => ([{
+            text: line,
+            fontSize: 10.5,
+            color: '#1e293b',
+            margin: [8, 6, 8, 6],
+            fillColor: index % 2 === 0 ? '#ffffff' : '#f8fafc'
+        }]))
+        : [[{
+            text: 'Không có thông tin chẩn đoán/điều trị rõ ràng.',
+            fontSize: 10,
+            color: '#64748b',
+            margin: [8, 8, 8, 8],
+            fillColor: '#ffffff'
+        }]];
+
+    const medicineBody = [
+        [
+            { text: 'STT', bold: true, fontSize: 10.5, color: '#0f172a', alignment: 'center', fillColor: '#cffafe', margin: [0, 7, 0, 7] },
+            { text: 'Tên thuốc', bold: true, fontSize: 10.5, color: '#0f172a', alignment: 'center', fillColor: '#cffafe', margin: [0, 7, 0, 7] },
+            { text: 'Liều dùng', bold: true, fontSize: 10.5, color: '#0f172a', alignment: 'center', fillColor: '#cffafe', margin: [0, 7, 0, 7] },
+            { text: 'Số lượng', bold: true, fontSize: 10.5, color: '#0f172a', alignment: 'center', fillColor: '#cffafe', margin: [0, 7, 0, 7] }
+        ]
+    ];
+
+    if (medicineRows.length > 0) {
+        medicineRows.forEach((item, index) => {
+            const rowFill = index % 2 === 0 ? '#ffffff' : '#f8fafc';
+            medicineBody.push([
+                { text: item.stt || '-', fontSize: 10.5, alignment: 'center', margin: [4, 6, 4, 6], fillColor: rowFill },
+                { text: item.name || '-', fontSize: 10.5, margin: [6, 6, 6, 6], fillColor: rowFill },
+                { text: item.dosage || '-', fontSize: 10.5, margin: [6, 6, 6, 6], fillColor: rowFill },
+                { text: item.quantity || '-', fontSize: 10.5, alignment: 'center', margin: [4, 6, 4, 6], fillColor: rowFill }
+            ]);
+        });
+    } else {
+        medicineBody.push([
+            { text: '-', fontSize: 10.5, alignment: 'center', margin: [4, 8, 4, 8], fillColor: '#ffffff' },
+            { text: 'Không tách được tên thuốc từ OCR', fontSize: 10.5, margin: [6, 8, 6, 8], colSpan: 2, fillColor: '#ffffff' },
+            {},
+            { text: '-', fontSize: 10.5, alignment: 'center', margin: [4, 8, 4, 8], fillColor: '#ffffff' }
+        ]);
+    }
+
+    const docDefinition = {
+        pageSize: 'A4',
+        pageMargins: [36, 36, 36, 36],
+        header: (currentPage) => ({
+            margin: [36, 18, 36, 0],
+            columns: [
+                { text: 'OCR Thuốc - Kết quả đơn thuốc', fontSize: 10, color: '#0f766e', bold: true },
+                { text: `Trang ${currentPage}`, fontSize: 9, color: '#64748b', alignment: 'right' }
+            ]
+        }),
+        footer: (currentPage, pageCount) => ({
+            margin: [36, 0, 36, 16],
+            columns: [
+                { text: 'Tài liệu được tạo từ hệ thống OCR Thuốc', fontSize: 8, color: '#64748b' },
+                { text: `${currentPage}/${pageCount}`, fontSize: 8, color: '#64748b', alignment: 'right' }
+            ]
+        }),
+        content: [
+            {
+                table: {
+                    widths: ['*'],
+                    body: [[{
+                        text: 'KẾT QUẢ NHẬN DẠNG ĐƠN THUỐC',
+                        fontSize: 16,
+                        bold: true,
+                        alignment: 'center',
+                        color: '#0f172a',
+                        margin: [0, 10, 0, 10],
+                        fillColor: '#e6fffb'
+                    }]]
+                },
+                layout: {
+                    hLineWidth: () => 1,
+                    vLineWidth: () => 1,
+                    hLineColor: () => '#99f6e4',
+                    vLineColor: () => '#99f6e4'
+                },
+                margin: [0, 8, 0, 10]
+            },
+            {
+                table: {
+                    widths: ['*', '*'],
+                    body: [
+                        [
+                            {
+                                text: `Ngày tạo: ${new Date().toLocaleString('vi-VN')}`,
+                                fontSize: 10,
+                                color: '#334155',
+                                margin: [8, 8, 8, 8],
+                                fillColor: '#f8fafc'
+                            },
+                            {
+                                text: `Tệp ảnh: ${currentResultFilename || 'Không xác định'}`,
+                                fontSize: 10,
+                                color: '#334155',
+                                alignment: 'right',
+                                margin: [8, 8, 8, 8],
+                                fillColor: '#f8fafc'
+                            }
+                        ],
+                        [
+                            {
+                                text: `Người xuất đơn: ${currentUserFullname || 'Không xác định'}`,
+                                fontSize: 10,
+                                color: '#334155',
+                                margin: [8, 8, 8, 8],
+                                fillColor: '#f8fafc'
+                            },
+                            {
+                                text: `Số điện thoại: ${currentUserPhone || 'Chưa cập nhật'}`,
+                                fontSize: 10,
+                                color: '#334155',
+                                alignment: 'right',
+                                margin: [8, 8, 8, 8],
+                                fillColor: '#f8fafc'
+                            }
+                        ]
+                    ]
+                },
+                layout: {
+                    hLineWidth: () => 1,
+                    vLineWidth: () => 1,
+                    hLineColor: () => '#cbd5e1',
+                    vLineColor: () => '#cbd5e1'
+                },
+                margin: [0, 0, 0, 10]
+            },
+            {
+                table: {
+                    widths: ['*'],
+                    body: [[{
+                        text: 'THÔNG TIN NHẬN DẠNG',
+                        fontSize: 12,
+                        bold: true,
+                        color: '#0f172a',
+                        alignment: 'left',
+                        margin: [8, 7, 8, 7],
+                        fillColor: '#ecfeff'
+                    }]]
+                },
+                layout: {
+                    hLineWidth: () => 1,
+                    vLineWidth: () => 1,
+                    hLineColor: () => '#99f6e4',
+                    vLineColor: () => '#99f6e4'
+                },
+                margin: [0, 0, 0, 0]
+            },
+            {
+                table: {
+                    widths: ['*', '*'],
+                    body: infoBody
+                },
+                layout: {
+                    hLineWidth: () => 0.8,
+                    vLineWidth: () => 0.8,
+                    hLineColor: () => '#cbd5e1',
+                    vLineColor: () => '#cbd5e1'
+                },
+                margin: [0, 0, 0, 10]
+            },
+            {
+                table: {
+                    widths: ['*'],
+                    body: [[{
+                        text: 'CHẨN ĐOÁN VÀ ĐIỀU TRỊ',
+                        fontSize: 12,
+                        bold: true,
+                        color: '#0f172a',
+                        alignment: 'left',
+                        margin: [8, 7, 8, 7],
+                        fillColor: '#ecfeff'
+                    }]]
+                },
+                layout: {
+                    hLineWidth: () => 1,
+                    vLineWidth: () => 1,
+                    hLineColor: () => '#99f6e4',
+                    vLineColor: () => '#99f6e4'
+                },
+                margin: [0, 0, 0, 0]
+            },
+            {
+                table: {
+                    widths: ['*'],
+                    body: diagnosisBody
+                },
+                layout: {
+                    hLineWidth: () => 0.8,
+                    vLineWidth: () => 0.8,
+                    hLineColor: () => '#cbd5e1',
+                    vLineColor: () => '#cbd5e1'
+                },
+                margin: [0, 0, 0, 10]
+            },
+            {
+                table: {
+                    widths: ['*'],
+                    body: [[{
+                        text: 'DANH MỤC THUỐC',
+                        fontSize: 12,
+                        bold: true,
+                        color: '#0f172a',
+                        alignment: 'left',
+                        margin: [8, 7, 8, 7],
+                        fillColor: '#ecfeff'
+                    }]]
+                },
+                layout: {
+                    hLineWidth: () => 1,
+                    vLineWidth: () => 1,
+                    hLineColor: () => '#99f6e4',
+                    vLineColor: () => '#99f6e4'
+                },
+                margin: [0, 0, 0, 0]
+            },
+            {
+                table: {
+                    headerRows: 1,
+                    widths: [42, '*', 140, 70],
+                    body: medicineBody
+                },
+                layout: {
+                    hLineWidth: () => 0.8,
+                    vLineWidth: () => 0.8,
+                    hLineColor: () => '#cbd5e1',
+                    vLineColor: () => '#cbd5e1'
+                }
+            }
+        ],
+        defaultStyle: {
+            font: 'Roboto'
+        }
+    };
+
+    const ts = new Date();
+    const stamp = `${ts.getFullYear()}${String(ts.getMonth() + 1).padStart(2, '0')}${String(ts.getDate()).padStart(2, '0')}_${String(ts.getHours()).padStart(2, '0')}${String(ts.getMinutes()).padStart(2, '0')}`;
+    window.pdfMake.createPdf(docDefinition).download(`ket-qua-ocr-${stamp}.pdf`);
+});
+
+submitBtn.addEventListener('click', async () => {
+    if (!ensureAuthenticated()) return;
+    if (selectedFiles.length === 0) return;
+
+    const isBatch = selectedFiles.length > 1;
+    const formData = new FormData();
+    if (isBatch) {
+        selectedFiles.forEach((file) => formData.append('files', file));
+    } else {
+        formData.append('file', selectedFiles[0]);
+    }
+
+    submitBtn.disabled = true;
+    submitIcon.classList.add('hidden');
+    submitText.innerHTML = '<span class="loading-spinner"></span>';
+    scanOverlay.classList.remove('hidden');
+    error.classList.add('hidden');
+    result.classList.add('hidden');
+
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 90000);
+        const response = await fetch(isBatch ? '/upload-batch' : '/upload', { method: 'POST', body: formData, signal: controller.signal });
+        clearTimeout(timeoutId);
+        const data = await response.json();
+        if (response.ok) {
+            if (isBatch) {
+                const successful = data.results || [];
+                const failed = data.errors || [];
+                const usedAutoNames = new Set((scanHistory || []).map((item) => item.filename).filter(Boolean));
+
+                if (successful.length === 0) {
+                    showError('Không có ảnh nào quét thành công trong lô đã chọn.');
+                    showScanToast('error', 'Quét không thành công', 'Không có ảnh nào trong lô quét thành công.');
+                    return;
+                }
+
+                const merged = [];
+                let firstHistoryId = null;
+                for (const item of successful) {
+                    const block = formatOcrTextForDisplay(item.text || 'Không nhận dạng được văn bản.');
+                    const autoFilename = getNextAutoPrescriptionName(usedAutoNames);
+                    usedAutoNames.add(autoFilename);
+                    merged.push(`=== ${autoFilename} ===\n${block}`);
+                    const savedId = await addToHistory(autoFilename, block);
+                    if (!firstHistoryId && savedId) firstHistoryId = savedId;
+                }
+
+                if (failed.length > 0) {
+                    merged.push('\n=== Ảnh lỗi ===');
+                    failed.forEach((err) => merged.push(`- ${err.filename}: ${err.error}`));
+                }
+
+                currentResultFilename = `Batch ${successful.length} ảnh`;
+                currentResultHistoryId = null;
+                resultText.textContent = merged.join('\n\n');
+                renderStructuredResult(resultText.textContent);
+                const batchMsg = failed.length > 0
+                    ? `Quét thành công ${successful.length} ảnh, lỗi ${failed.length} ảnh.`
+                    : `Quét thành công ${successful.length} ảnh.`;
+                showScanToast('success', 'Quét lô hoàn tất', batchMsg, { targetHistoryId: firstHistoryId });
+            } else {
+                const formattedText = formatOcrTextForDisplay(data.text || 'Không nhận dạng được văn bản.');
+                currentResultFilename = getNextAutoPrescriptionName();
+                resultText.textContent = formattedText;
+                renderStructuredResult(formattedText);
+                currentResultHistoryId = await addToHistory(currentResultFilename, formattedText);
+                showScanToast('success', 'Quét thành công', `Đã quét thành công đơn thuốc: ${currentResultFilename || 'Không xác định'}.`, { targetHistoryId: currentResultHistoryId });
+            }
+
+            result.classList.remove('hidden');
+            gsap.from(result, { y: 20, opacity: 0, duration: 0.6, ease: 'power3.out' });
+            result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else if (response.status === 401) {
+            requireLogin();
+        } else if (response.status === 422 || /không thể quét|khong the quet/i.test(data.error || '')) {
+            showScanErrorModal(data.error || 'Hình ảnh của bạn không thể quét. Vui lòng chọn ảnh đơn thuốc rõ chữ.');
+            showScanToast('error', 'Quét không thành công', data.error || 'Hình ảnh của bạn không thể quét.');
+        } else {
+            showError(data.error || 'Có lỗi xảy ra.');
+            showScanToast('error', 'Quét không thành công', data.error || 'Có lỗi xảy ra trong quá trình quét.');
+        }
+    } catch (err) {
+        if (err.name === 'AbortError') {
+            showError('Quét OCR đang quá thời gian xử lý. Vui lòng thử lại bằng ảnh rõ hơn hoặc nhỏ hơn.');
+            showScanToast('error', 'Quét quá thời gian', 'Quá thời gian xử lý OCR. Vui lòng thử ảnh rõ hơn hoặc nhỏ hơn.');
+        } else {
+            showError('Không thể kết nối tới server.');
+            showScanToast('error', 'Lỗi kết nối', 'Không thể kết nối tới máy chủ OCR.');
+        }
+    } finally {
+        await loadSummaryStats();
+        submitIcon.classList.remove('hidden');
+        submitText.textContent = 'Nhận dạng văn bản';
+        lucide.createIcons();
+        submitBtn.disabled = false;
+        scanOverlay.classList.add('hidden');
+    }
+});
+
+function showError(msg) {
+    errorText.textContent = msg;
+    error.classList.remove('hidden');
+    gsap.from(error, { y: 10, opacity: 0, duration: 0.4 });
+}
+
+function normalizeOcrLine(rawLine) {
+    let line = (rawLine || '').replace(/\s+/g, ' ').trim();
+    if (!line) return '';
+
+    const replacements = [
+        [/\bThan nhiệt\b/gi, 'Thân nhiệt'],
+        [/\bThan nhiet\b/gi, 'Thân nhiệt'],
+        [/\bChan doan\b/gi, 'Chẩn đoán'],
+        [/\bChuan doan\b/gi, 'Chuẩn đoán'],
+        [/\bDieu tri\b/gi, 'Điều trị'],
+        [/\bSinh hieu\b/gi, 'Sinh hiệu'],
+        [/\bCan nang\b/gi, 'Cân nặng'],
+        [/\bHo ten\b/gi, 'Họ tên'],
+        [/\bDia chi\b/gi, 'Địa chỉ'],
+        [/\bDien thoai\b/gi, 'Điện thoại']
+    ];
+    replacements.forEach(([pattern, value]) => {
+        line = line.replace(pattern, value);
+    });
+
+    line = line
+        .replace(/\s*:\s*/g, ': ')
+        .replace(/\s*;\s*/g, '; ')
+        .replace(/\s*,\s*/g, ', ')
+        .replace(/\s+([,;:.!?])/g, '$1')
+        .replace(/([:;,.!?])(?!\s|$)/g, '$1 ')
+        .replace(/\(\s+/g, '(')
+        .replace(/\s+\)/g, ')')
+        .replace(/(\d)\s*(Kg|kg)\b/g, '$1 kg')
+        .replace(/(\d)\s*(Ml|ML|ml)\b/g, '$1 ml')
+        .replace(/(\d)\s*(Mg|MG|mg)\b/g, '$1 mg')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+
+    return line;
+}
+
+function splitByMedicalFields(line) {
+    const withBreaks = line.replace(
+        /\s+(?=(Họ tên|NS|Ns|Địa chỉ|Điện thoại|Sinh hiệu|Thân nhiệt|Huyết áp|Cân nặng|Chẩn đoán|Chuẩn đoán|Điều trị|Bệnh kèm theo)\s*:)/gi,
+        '\n'
+    );
+    return withBreaks.split('\n').map((part) => part.trim()).filter(Boolean);
+}
+
+function buildCompactInfoBody(patientInfoRows) {
+    const compactLines = patientInfoRows
+        .flatMap((line) => splitByMedicalFields(normalizeOcrLine(line)))
+        .map((line) => line.replace(/^~+\s*/, '').trim())
+        .filter((line) => line.length > 0)
+        .filter((line) => !/^(ĐƠN THUỐC|DON THUOC)$/i.test(line))
+        .filter((line) => !/^[^:]{1,40}:\s*$/i.test(line));
+
+    if (compactLines.length === 0) {
+        return [[
+            {
+                text: 'Không tách được thông tin hành chính từ OCR.',
+                colSpan: 2,
+                fontSize: 10,
+                color: '#64748b',
+                margin: [8, 8, 8, 8],
+                fillColor: '#ffffff'
+            },
+            {}
+        ]];
+    }
+
+    const body = [];
+    for (let i = 0; i < compactLines.length; i += 2) {
+        const fillColor = (Math.floor(i / 2) % 2 === 0) ? '#ffffff' : '#f8fafc';
+        body.push([
+            { text: compactLines[i], fontSize: 10.5, color: '#1e293b', margin: [8, 5, 8, 5], fillColor },
+            { text: compactLines[i + 1] || '', fontSize: 10.5, color: '#1e293b', margin: [8, 5, 8, 5], fillColor }
+        ]);
+    }
+    return body;
+}
+
+function tryParseMedicineRow(line) {
+    const match = line.match(/^(\d+)\s*[\/.\-)]+\s*(.+)$/);
+    if (!match) return null;
+
+    let rest = match[2].trim();
+    let quantity = '';
+    let inlineDosage = '';
+
+    // Handle "| SL: X" format embedded by structurePrescriptionRows
+    const slMatch = rest.match(/^(.*?)\s*\|\s*SL\s*:\s*(.+)$/i);
+    if (slMatch) {
+        rest = slMatch[1].trim();
+        quantity = slMatch[2].trim();
+    } else {
+        // Try to find dosage keywords embedded within the line
+        // e.g. "Amox Ngọt 09 Viên Sáng 1; Trưa 1; Chiều 1"
+        const dosageKw = rest.match(/\b(Sáng|Sang|Trưa|Trua|Chiều|Chieu|Tối|Toi|Uống|Uong|Thoa|Bôi|Boi)\b/i);
+        if (dosageKw) {
+            inlineDosage = rest.slice(dosageKw.index).trim();
+            rest = rest.slice(0, dosageKw.index).trim();
+        }
+
+        // Extract quantity from end of remaining name part
+        const quantityMatch = rest.match(/(\d+\s*(Viên|Viện|Ống|Chai|Tuýp|Tuyp|Gói|Goi|ml|mg|UI))$/i);
+        if (quantityMatch) {
+            quantity = quantityMatch[1].trim();
+            rest = rest.slice(0, quantityMatch.index).trim();
+        }
+    }
+
+    return {
+        stt: match[1],
+        name: rest,
+        quantity,
+        dosage: [],
+        inlineDosage
+    };
+}
+
+function structurePrescriptionRows(rows) {
+    const output = [];
+    const dosagePattern = /^(Sáng|Trưa|Chiều|Tối|Uống|Thoa|Bôi|Ngày|Tuan|Tuần)\b/i;
+    let inMedicineBlock = false;
+    let hasMedicineHeader = false;
+    let currentMedicine = null;
+
+    for (const row of rows) {
+        if (/^(Điều trị|Đơn thuốc|STT)\b/i.test(row)) {
+            inMedicineBlock = true;
+            output.push(row);
+            continue;
+        }
+
+        if (/^(Bệnh kèm theo|Chẩn đoán|Chuẩn đoán|Bác sĩ|Ngày)\b/i.test(row)) {
+            inMedicineBlock = false;
+            currentMedicine = null;
+            output.push(row);
+            continue;
+        }
+
+        if (!inMedicineBlock) {
+            output.push(row);
+            continue;
+        }
+
+        const medicine = tryParseMedicineRow(row);
+        if (medicine) {
+            if (!hasMedicineHeader) {
+                output.push('Danh mục thuốc:');
+                hasMedicineHeader = true;
+            }
+            const qtyText = medicine.quantity ? ` | SL: ${medicine.quantity}` : '';
+            output.push(`${medicine.stt}. ${medicine.name}${qtyText}`);
+            if (medicine.inlineDosage) {
+                output.push(`   - ${medicine.inlineDosage}`);
+                medicine.dosage.push(medicine.inlineDosage);
+            }
+            currentMedicine = medicine;
+            continue;
+        }
+
+        if (currentMedicine && dosagePattern.test(row)) {
+            output.push(`   - ${row}`);
+            currentMedicine.dosage.push(row);
+            continue;
+        }
+
+        output.push(row);
+    }
+
+    return output;
+}
+
+function formatOcrTextForDisplay(rawText) {
+    const source = (rawText || '').replace(/\r/g, '\n');
+    const lines = source
+        .split('\n')
+        .flatMap((line) => splitByMedicalFields(normalizeOcrLine(line)))
+        .filter((line) => line.length > 0);
+
+    if (lines.length === 0) return '';
+
+    const fieldPattern = /^(Họ tên|Ho ten|Hoten|Địa chỉ|Dia chi|Sinh hiệu|Than nhiệt|Thân nhiệt|Huyết áp|Cân nặng|Chẩn đoán|Chuẩn đoán|Điều trị|Bệnh kèm theo|Ngày|Bác sĩ|STT|Sáng|Trưa|Chiều|Tối|Uống|Thoa|Bôi)\b/i;
+    const itemPattern = /^\d+\s*[\/.\-)]+\s*/;
+    const allCapsPattern = /^[A-ZÀ-Ỵ0-9\s:()\-]{6,}$/;
+
+    const rows = [];
+    for (const line of lines) {
+        const isNewRow = fieldPattern.test(line) || itemPattern.test(line) || allCapsPattern.test(line);
+        if (rows.length === 0 || isNewRow || rows[rows.length - 1].endsWith(':')) {
+            rows.push(line);
+            continue;
+        }
+
+        rows[rows.length - 1] = `${rows[rows.length - 1]} ${line}`;
+    }
+
+    const structuredRows = structurePrescriptionRows(rows);
+    return structuredRows.join('\n');
+}
+
+function extractOcrSectionsForView(formattedText) {
+    const sections = {
+        admin: [],
+        vitals: [],
+        diagnosis: [],
+        medicines: [],
+        instructions: [],
+        other: []
+    };
+
+    const lines = (formattedText || '')
+        .split('\n')
+        .map((line) => (line || '').trim())
+        .filter(Boolean);
+
+    const normalizeViewLine = (line) => {
+        return (line || '')
+            .replace(/h[oọ]\s*t[eê]n/gi, 'Họ tên')
+            .replace(/hot[eê]n/gi, 'Họ tên')
+            .replace(/\bho ten\b/gi, 'Họ tên')
+            .replace(/\bns\b\s*:?/gi, 'NS:')
+            .replace(/\bn[ăa]m sinh\b\s*:?/gi, 'Năm sinh:')
+            .replace(/\bcan nang\b/gi, 'Cân nặng')
+            .replace(/\bthan nhiet\b/gi, 'Thân nhiệt')
+            .replace(/\bhuyet ap\b/gi, 'Huyết áp')
+            .replace(/\bdia chi\b/gi, 'Địa chỉ')
+            .replace(/\bdien thoai\b/gi, 'Điện thoại')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+    };
+
+    const splitMixedFields = (line) => {
+        const prepared = normalizeViewLine(line)
+            .replace(/\s+(?=(Họ tên|Tuổi|Giới tính|Địa chỉ|Điện thoại|NS|Năm sinh|Sinh hiệu|Thân nhiệt|Huyết áp|Cân nặng|Chẩn đoán|Chuẩn đoán|Điều trị)\s*:?)/gi, '\n')
+            .replace(/\s+(?=(\d+\s*[\/\.)\-]))/g, '\n');
+        return prepared.split('\n').map((x) => x.trim()).filter(Boolean);
+    };
+
+    const expandedLines = lines.flatMap((line) => splitMixedFields(line));
+    const normalizedWholeText = normalizeViewLine((formattedText || '').replace(/\n+/g, ' '));
+
+    const pushAdminFieldFromWholeText = (label, regex) => {
+        const match = normalizedWholeText.match(regex);
+        if (!match || !match[1]) return;
+        const value = match[1].replace(/\s{2,}/g, ' ').trim();
+        if (!value) return;
+        sections.admin.push(`${label}: ${value}`);
+    };
+
+    // OCR thường dính nhiều trường trên một dòng, cần tách cưỡng bức theo toàn văn.
+    pushAdminFieldFromWholeText('Họ tên', /(?:họ\s*tên|ho\s*ten|h[oọ]\s*t[eê]n|tên\s*bệnh\s*nhân)\s*[:\-]?\s*([^:;]+?)(?=\s+(?:NS|Năm\s*sinh|Tuổi|Giới\s*tính|Địa\s*chỉ|Điện\s*thoại|Sinh\s*hiệu|Thân\s*nhiệt|Huyết\s*áp|Cân\s*nặng|Chẩn\s*đoán|Điều\s*trị)\s*:?|$)/i);
+    pushAdminFieldFromWholeText('NS', /(?:\bNS\b|Năm\s*sinh)\s*[:\-]?\s*(.+?)(?=\s+(?:Tuổi|Giới\s*tính|Địa\s*chỉ|Điện\s*thoại|Sinh\s*hiệu|Thân\s*nhiệt|Huyết\s*áp|Cân\s*nặng|Chẩn\s*đoán|Điều\s*trị)\s*:?|$)/i);
+    pushAdminFieldFromWholeText('Cân nặng', /(?:Cân\s*nặng)\s*:?\s*(.+?)(?=\s+(?:Sinh\s*hiệu|Thân\s*nhiệt|Huyết\s*áp|Chẩn\s*đoán|Điều\s*trị|Bệnh\s*kèm\s*theo)\s*:|$)/i);
+    pushAdminFieldFromWholeText('Địa chỉ', /(?:Địa\s*chỉ)\s*:?\s*(.+?)(?=\s+(?:Điện\s*thoại|Sinh\s*hiệu|Thân\s*nhiệt|Huyết\s*áp|Chẩn\s*đoán|Điều\s*trị)\s*:|$)/i);
+    pushAdminFieldFromWholeText('Điện thoại', /(?:Điện\s*thoại)\s*:?\s*(.+?)(?=\s+(?:Sinh\s*hiệu|Thân\s*nhiệt|Huyết\s*áp|Chẩn\s*đoán|Điều\s*trị)\s*:|$)/i);
+
+    let inMedicine = false;
+    for (const line of expandedLines) {
+        const normalized = line.toLowerCase();
+        const medicineIndexPattern = /^(\d+\s*[\/\.)\-]|stt\b)/i;
+
+        if (/(họ\s*tên|ho\s*ten|h[oọ]\s*t[eê]n|tên\s*bệnh\s*nhân)/i.test(line)) {
+            const matchName = line.match(/(?:họ\s*tên|ho\s*ten|h[oọ]\s*t[eê]n|tên\s*bệnh\s*nhân)\s*[:\-]?\s*(.+?)(?=\s+(?:NS|Năm\s*sinh|Tuổi|Giới\s*tính|Địa\s*chỉ|Điện\s*thoại|Sinh\s*hiệu|Thân\s*nhiệt|Huyết\s*áp|Cân\s*nặng|Chẩn\s*đoán|Điều\s*trị)\s*:?|$)/i);
+            if (matchName && matchName[1]) {
+                sections.admin.push(`Họ tên: ${matchName[1].trim()}`);
+            }
+        }
+
+        if (/^Danh mục thuốc\s*:?$/i.test(line)) {
+            inMedicine = true;
+            continue;
+        }
+        if (/^(Chẩn đoán|Chuẩn đoán|Bệnh kèm theo|Điều trị|Lời dặn|Tái khám)\s*:?/i.test(line)) {
+            inMedicine = false;
+            sections.diagnosis.push(line);
+            continue;
+        }
+        if (/^(Họ tên|Tuổi|Giới tính|Địa chỉ|Điện thoại|NS|Năm sinh|Cân nặng)\s*:?/i.test(line)
+            || /(trung tam y te|trung tâm y tế|bệnh viện|benh vien|mã y|so ho so|số hồ sơ|bhyt|tên bệnh nhân|đối tượng)/i.test(normalized)) {
+            sections.admin.push(line);
+            continue;
+        }
+        if (/^(Sinh hiệu|Thân nhiệt|Huyết áp|Mạch|Nhịp thở)\s*:?/i.test(line)) {
+            sections.vitals.push(line);
+            continue;
+        }
+        if ((/^(Sáng|Trưa|Chiều|Tối|Uống|Thoa|Bôi|Liều|Ghi chú)\b/i.test(line) || /^-\s+/.test(line))
+            && /(\d|viên|ống|chai|ml|mg|ui|lần|ngày)/i.test(normalized)) {
+            sections.instructions.push(line);
+            continue;
+        }
+        if (inMedicine && medicineIndexPattern.test(line)) {
+            sections.medicines.push(line);
+            continue;
+        }
+        if (medicineIndexPattern.test(line) && /(viên|ống|chai|mg|ml|ui|caps|tab|thuốc|ham luong|hàm lượng|sáng|trưa|chiều|tối|lần\s*\/\s*ngày)/i.test(normalized)) {
+            sections.medicines.push(line);
+            continue;
+        }
+        if (/(chan doan|chẩn đoán|chuẩn đoán|điều trị|lời dặn|tái khám)/i.test(normalized)) {
+            sections.diagnosis.push(line);
+            continue;
+        }
+        sections.other.push(line);
+    }
+
+    if (sections.medicines.length === 0) {
+        const maybeMedicine = expandedLines.filter((line) => /(viên|ống|chai|mg|ml|UI|caps|tab)/i.test(line));
+        if (maybeMedicine.length > 0) {
+            sections.medicines = maybeMedicine;
+            sections.other = sections.other.filter((line) => !maybeMedicine.includes(line));
+        }
+    }
+
+    const uniq = (arr) => [...new Set(arr.map((x) => x.trim()).filter(Boolean))];
+    sections.admin = uniq(sections.admin);
+    sections.vitals = uniq(sections.vitals);
+    sections.diagnosis = uniq(sections.diagnosis);
+    sections.medicines = uniq(sections.medicines);
+    sections.instructions = uniq(sections.instructions);
+    sections.other = uniq(sections.other).filter((line) => !sections.instructions.includes(line));
+
+    const nameLikePattern = /(h[oọóòôơ]?\s*t[eêéè]n|ho\s*ten|hoten|hótén|tên\s*bệnh\s*nhân)/i;
+    const normalizeNameLine = (line) => {
+        const raw = (line || '').trim();
+        const match = raw.match(/(?:h[oọóòôơ]?\s*t[eêéè]n|ho\s*ten|hoten|hótén|tên\s*bệnh\s*nhân)\s*[:\-]?\s*(.+)$/i);
+        const value = (match && match[1] ? match[1] : raw)
+            .replace(/^(?:h[oọóòôơ]?\s*t[eêéè]n|ho\s*ten|hoten|hótén|tên\s*bệnh\s*nhân)\s*[:\-]?\s*/i, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+        return value ? `Họ tên: ${value}` : '';
+    };
+
+    const rescuedNameLines = sections.other
+        .filter((line) => nameLikePattern.test(line))
+        .map((line) => normalizeNameLine(line))
+        .filter(Boolean);
+    if (rescuedNameLines.length > 0) {
+        sections.admin = uniq([...sections.admin, ...rescuedNameLines]);
+        sections.other = sections.other.filter((line) => !nameLikePattern.test(line));
+    }
+
+    const adminOrder = ['Họ tên', 'NS', 'Năm sinh', 'Tuổi', 'Giới tính', 'Cân nặng', 'Địa chỉ', 'Điện thoại'];
+    sections.admin = sections.admin
+        .sort((a, b) => {
+            const ai = adminOrder.findIndex((key) => new RegExp(`^${key}\\s*:`, 'i').test(a));
+            const bi = adminOrder.findIndex((key) => new RegExp(`^${key}\\s*:`, 'i').test(b));
+            const aRank = ai === -1 ? 999 : ai;
+            const bRank = bi === -1 ? 999 : bi;
+            return aRank - bRank;
+        })
+        .filter((line, idx, arr) => {
+            const key = (line.split(':')[0] || '').trim().toLowerCase();
+            return arr.findIndex((x) => (x.split(':')[0] || '').trim().toLowerCase() === key) === idx;
+        });
+
+    return sections;
+}
+
+function renderSectionCard(title, lines) {
+    if (!lines || lines.length === 0) {
+        return `
+            <div class="ocr-section-card">
+                <div class="ocr-section-title">${escapeHtml(title)}</div>
+                <div class="ocr-empty">Không có dữ liệu.</div>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="ocr-section-card">
+            <div class="ocr-section-title">${escapeHtml(title)}</div>
+            ${lines.map((line) => `<div class="ocr-line">${escapeHtml(line)}</div>`).join('')}
+        </div>
+    `;
+}
+
+function parseMedicineGuideItems(formattedText) {
+    const lines = (formattedText || '')
+        .split('\n')
+        .map((line) => (line || '').trim())
+        .filter(Boolean);
+
+    const items = [];
+    let currentItem = null;
+
+    const medPattern = /^(\d+)\s*[\/\.)\-]+\s*(.+)$/i;
+    const quantityTailPattern = /(\d+\s*(Viên|Ống|Chai|Tuýp|Tuyp|Gói|Goi|ml|mg|UI|Giọt))$/i;
+
+    const looksLikeDosage = (line) => {
+        const normalized = (line || '').toLowerCase();
+        return /(sáng|trưa|chiều|tối|uống|thoa|bôi|liều|ngày|lần|\/) /i.test(`${line} `)
+            || (/^(sáng|trưa|chiều|tối|uống|thoa|bôi|liều|ghi chú|-)\b/i.test(line) && /\d|\/|nửa|1\/2/i.test(normalized));
+    };
+
+    for (const rawLine of lines) {
+        const line = rawLine.replace(/^[-•*]\s*/, '').trim();
+        if (!line) continue;
+        if (/^Danh mục thuốc\s*:?$/i.test(line)) continue;
+        if (/^---\s*Hướng dẫn dùng thuốc\s*---$/i.test(line)) continue;
+
+        const medMatch = line.match(medPattern);
+        if (medMatch) {
+            let namePart = medMatch[2].trim();
+            let quantityPart = '';
+
+            const slMatch = namePart.match(/^(.*?)\s*\|\s*SL\s*:\s*(.+)$/i);
+            let inlineDosagePart = '';
+            if (slMatch) {
+                namePart = slMatch[1].trim();
+                quantityPart = slMatch[2].trim();
+            } else {
+                // Extract dosage keywords embedded within the name
+                const dosageKw = namePart.match(/\b(Sáng|Sang|Trưa|Trua|Chiều|Chieu|Tối|Toi|Uống|Uong|Thoa|Bôi|Boi)\b/i);
+                if (dosageKw) {
+                    inlineDosagePart = namePart.slice(dosageKw.index).trim();
+                    namePart = namePart.slice(0, dosageKw.index).trim();
+                }
+                const qtyMatch = namePart.match(quantityTailPattern);
+                if (qtyMatch) {
+                    quantityPart = qtyMatch[1].trim();
+                    namePart = namePart.slice(0, qtyMatch.index).trim();
+                }
+            }
+
+            currentItem = {
+                index: medMatch[1],
+                name: namePart,
+                quantity: quantityPart,
+                dosage: inlineDosagePart ? [inlineDosagePart] : []
+            };
+            items.push(currentItem);
+            continue;
+        }
+
+        if (!currentItem) continue;
+
+        if (looksLikeDosage(line)) {
+            currentItem.dosage.push(line.replace(/^-\s*/, '').trim());
+            continue;
+        }
+
+        if (/^(\d+\/\d+|\/\d+|\d+\/|;|,)/.test(line) && currentItem.dosage.length > 0) {
+            const lastIndex = currentItem.dosage.length - 1;
+            currentItem.dosage[lastIndex] = `${currentItem.dosage[lastIndex]} ${line}`.replace(/\s{2,}/g, ' ').trim();
+        }
+    }
+
+    return items;
+}
+
+function renderMedicineGuideCard(items) {
+    if (!items || items.length === 0) {
+        return renderSectionCard('Danh mục thuốc và hướng dẫn dùng thuốc', []);
+    }
+
+    const rows = items.map((item) => {
+        const quantityText = item.quantity ? `SL: ${item.quantity}` : 'SL: -';
+        const dosageRows = item.dosage.length > 0
+            ? item.dosage.map((dose) => `<div class="ocr-line" style="margin-left:20px;">- ${escapeHtml(dose)}</div>`).join('')
+            : '<div class="ocr-line" style="margin-left:20px; opacity:0.8;">- Chưa có hướng dẫn liều dùng</div>';
+
+        return `
+            <div class="ocr-line" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+                <span>${escapeHtml(`${item.index}. ${item.name}`)}</span>
+                <span style="font-weight:700; white-space:nowrap;">${escapeHtml(quantityText)}</span>
+            </div>
+            ${dosageRows}
+        `;
+    }).join('');
+
+    return `
+        <div class="ocr-section-card">
+            <div class="ocr-section-title">Danh mục thuốc và hướng dẫn dùng thuốc</div>
+            ${rows}
+        </div>
+    `;
+}
+
+function renderStructuredResult(formattedText) {
+    if (!resultStructured) return;
+    const sections = extractOcrSectionsForView(formattedText);
+    const medicineItems = parseMedicineGuideItems(formattedText);
+    const medicineRelatedPattern = /^(Danh mục thuốc\s*:?|\d+\s*[\/\.)\-]|-\s*|Sáng|Trưa|Chiều|Tối|Uống|Thoa|Bôi|Liều|Ghi chú)/i;
+    const cleanedOther = (sections.other || []).filter((line) => !medicineRelatedPattern.test(line));
+
+    resultStructured.innerHTML = [
+        renderSectionCard('Thông tin hành chính', sections.admin),
+        renderSectionCard('Sinh hiệu', sections.vitals),
+        renderSectionCard('Chẩn đoán và điều trị', sections.diagnosis),
+        renderMedicineGuideCard(medicineItems),
+        renderSectionCard('Thông tin khác', cleanedOther)
+    ].join('');
+}
+
+function parseHistoryDate(createdAt) {
+    if (!createdAt) {
+        return {
+            date: new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: 'long', year: 'numeric' }),
+            time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+        };
+    }
+
+    const normalized = createdAt.includes('T') ? createdAt : createdAt.replace(' ', 'T');
+    const parsedDate = new Date(normalized);
+    if (Number.isNaN(parsedDate.getTime())) {
+        return { date: createdAt, time: '' };
+    }
+
+    return {
+        date: parsedDate.toLocaleDateString('vi-VN', { day: '2-digit', month: 'long', year: 'numeric' }),
+        time: parsedDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+    };
+}
+
+async function loadHistory() {
+    if (!isAuthenticated) {
+        scanHistory = [];
+        updateStats();
+        renderHistory();
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/history');
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            scanHistory = [];
+            updateStats();
+            renderHistory();
+            return;
+        }
+
+        scanHistory = (data.data || []).map((item) => {
+            const dt = parseHistoryDate(item.createdAt);
+            const formattedFullText = formatOcrTextForDisplay(item.fullText || '');
+            return {
+                id: item.id,
+                filename: item.filename,
+                text: (item.text || '').replace(/\n/g, ' '),
+                fullText: formattedFullText,
+                date: dt.date,
+                time: dt.time
+            };
+        });
+        updateStats();
+        renderHistory();
+    } catch (err) {
+        scanHistory = [];
+        updateStats();
+        renderHistory();
+    }
+}
+
+async function loadSummaryStats() {
+    try {
+        const response = await fetch('/api/history/summary');
+        const data = await response.json();
+        if (!response.ok || !data.success || !data.data) return;
+
+        document.getElementById('statScanned').textContent = data.data.total ?? 0;
+        document.getElementById('statToday').textContent = data.data.today ?? 0;
+        scanErrorCount = data.data.errors ?? 0;
+        document.getElementById('statErrors').textContent = scanErrorCount;
+    } catch (err) {
+        // Keep current fallback stats.
+    }
+}
+
+async function addToHistory(filename, text) {
+    if (!isAuthenticated) return;
+    try {
+        const response = await fetch('/api/history', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename, fullText: text })
+        });
+        if (!response.ok) return null;
+        const data = await response.json();
+        if (!data.success) return null;
+        await loadHistory();
+        return data.id || null;
+    } catch (err) {
+        return null;
+    }
+}
+
+function updateStats() {
+    document.getElementById('statScanned').textContent = scanHistory.length;
+    document.getElementById('statToday').textContent = scanHistory.filter(h => h.date === new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: 'long', year: 'numeric' })).length;
+    document.getElementById('statErrors').textContent = scanErrorCount;
+}
+
+function normalizeSearchText(value) {
+    return (value || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+}
+
+function toComparableDate(dateLabel) {
+    const parsed = new Date(dateLabel);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+
+    const match = dateLabel.match(/(\d{1,2})\s+tháng\s+(\d{1,2}),\s*(\d{4})/i);
+    if (!match) return null;
+    return new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+}
+
+function getFilteredHistory() {
+    const term = normalizeSearchText(historySearchTerm.trim());
+    return scanHistory.filter((item) => {
+        const combined = normalizeSearchText(`${item.filename} ${item.text} ${item.fullText}`);
+        const textOk = !term || combined.includes(term);
+
+        const itemDate = toComparableDate(item.date);
+        let dateOk = true;
+        if (historyDateFrom && itemDate) {
+            const fromDate = new Date(historyDateFrom + 'T00:00:00');
+            if (itemDate < fromDate) dateOk = false;
+        }
+        if (historyDateTo && itemDate) {
+            const toDate = new Date(historyDateTo + 'T23:59:59');
+            if (itemDate > toDate) dateOk = false;
+        }
+
+        return textOk && dateOk;
+    });
+}
+
+clearHistoryBtn.addEventListener('click', async () => {
+    if (!isAuthenticated) return;
+    try {
+        await fetch('/api/history', { method: 'DELETE' });
+    } catch (err) {
+        // Ignore and refresh from server state below.
+    }
+    await loadHistory();
+});
+
+function renderHistory() {
+    const visibleHistory = getFilteredHistory();
+    const recentHistory = scanHistory.slice(0, 6);
+
+    if (!isAuthenticated) {
+        clearHistoryBtn.classList.add('hidden');
+        recentGrid.innerHTML = `
+            <div class="text-center text-slate-400 col-span-full py-16">
+                <i data-lucide="lock" class="w-14 h-14 mx-auto mb-3 opacity-40"></i>
+                <p class="font-medium">Đăng nhập để xem đơn thuốc gần đây</p>
+                <p class="text-sm mt-1">Lịch sử chỉ hiển thị theo tài khoản bạn đã đăng nhập</p>
+            </div>`;
+        historyGrid.innerHTML = `
+            <div class="text-center text-slate-400 col-span-full py-16">
+                <i data-lucide="lock" class="w-14 h-14 mx-auto mb-3 opacity-40"></i>
+                <p class="font-medium">Đăng nhập để tra cứu lịch sử quét</p>
+                <p class="text-sm mt-1">Bạn có thể lọc theo ngày hoặc tìm theo từ khóa</p>
+            </div>`;
+        lucide.createIcons();
+        return;
+    }
+
+    if (scanHistory.length === 0) {
+        clearHistoryBtn.classList.add('hidden');
+        recentGrid.innerHTML = `
+            <div class="text-center text-slate-400 col-span-full py-16">
+                <i data-lucide="inbox" class="w-14 h-14 mx-auto mb-3 opacity-40"></i>
+                <p class="font-medium">Chưa có đơn thuốc nào được quét</p>
+                <p class="text-sm mt-1">Bắt đầu bằng cách tải lên ảnh đơn thuốc</p>
+            </div>`;
+        historyGrid.innerHTML = `
+            <div class="text-center text-slate-400 col-span-full py-16">
+                <i data-lucide="search" class="w-14 h-14 mx-auto mb-3 opacity-40"></i>
+                <p class="font-medium">Chưa có dữ liệu để tra cứu</p>
+                <p class="text-sm mt-1">Hãy quét đơn thuốc để tạo lịch sử tra cứu</p>
+            </div>`;
+        lucide.createIcons();
+        return;
+    }
+
+    recentGrid.innerHTML = recentHistory.map((item) => `
+        <div class="history-card glass rounded-2xl p-5 cursor-default">
+            <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="file-text" class="w-4 h-4 text-primary"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h4 class="font-bold text-sm truncate">${escapeHtml(item.filename)}</h4>
+                        <p class="text-xs text-slate-400">${escapeHtml(item.date)} ${item.time ? '• ' + escapeHtml(item.time) : ''}</p>
+                    </div>
+                </div>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-4 line-clamp-3 leading-relaxed">${escapeHtml(item.text)}</p>
+            <button onclick="viewResultById(${item.id})" class="w-full py-2.5 rounded-xl text-sm font-bold text-primary bg-primary/5 hover:bg-primary hover:text-white transition-all duration-300">
+                Xem kết quả
+            </button>
+        </div>
+    `).join('');
+
+    if (visibleHistory.length === 0) {
+        clearHistoryBtn.classList.remove('hidden');
+        historyGrid.innerHTML = `
+            <div class="text-center text-slate-400 col-span-full py-16">
+                <i data-lucide="search-x" class="w-14 h-14 mx-auto mb-3 opacity-40"></i>
+                <p class="font-medium">Không tìm thấy đơn thuốc phù hợp</p>
+                <p class="text-sm mt-1">Thử từ khóa khác hoặc xóa nội dung tìm kiếm</p>
+            </div>`;
+        lucide.createIcons();
+        return;
+    }
+
+    clearHistoryBtn.classList.remove('hidden');
+    historyGrid.innerHTML = visibleHistory.map((item, i) => `
+        <div class="history-card glass rounded-2xl p-5 cursor-default">
+            <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="file-text" class="w-4 h-4 text-primary"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h4 class="font-bold text-sm truncate">${escapeHtml(item.filename)}</h4>
+                        <p class="text-xs text-slate-400">${escapeHtml(item.date)} ${item.time ? '• ' + escapeHtml(item.time) : ''}</p>
+                    </div>
+                </div>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-4 line-clamp-3 leading-relaxed">${escapeHtml(item.text)}</p>
+            <button onclick="viewResultById(${item.id})" class="w-full py-2.5 rounded-xl text-sm font-bold text-primary bg-primary/5 hover:bg-primary hover:text-white transition-all duration-300">
+                Xem kết quả
+            </button>
+        </div>
+    `).join('');
+    lucide.createIcons();
+}
+
+function viewResultById(itemId) {
+    const item = scanHistory.find((entry) => entry.id === itemId);
+    if (!item) return;
+    currentResultHistoryId = item.id;
+    currentResultFilename = item.filename || '';
+    const formatted = formatOcrTextForDisplay(item.fullText);
+    resultText.textContent = formatted;
+    renderStructuredResult(formatted);
+    result.classList.remove('hidden');
+    gsap.from(result, { y: 20, opacity: 0, duration: 0.6, ease: 'power3.out' });
+    result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function openHistoryFromNotification(itemId) {
+    window.location.href = `/history?open=${encodeURIComponent(itemId)}`;
+}
+
+const appSearchTargets = [
+    {
+        keywords: ['quet', 'scan', 'ocr', 'tai anh', 'upload', 'nhan dang', 'don thuoc'],
+        sectionId: 'uploadSection'
+    },
+    {
+        keywords: ['thong ke', 'so lieu', 'chart', 'bao cao', 'loi'],
+        sectionId: 'statsSection'
+    },
+    {
+        keywords: ['gioi thieu', 'chuc nang', 'feature', 'ai-powered'],
+        sectionId: 'featureIntroSection'
+    },
+    {
+        keywords: ['huong dan', 'cach dung', 'su dung', 'bat dau nhanh'],
+        sectionId: 'usageGuideSection'
+    },
+    {
+        keywords: ['trang chu', 'dashboard', 'tong quan'],
+        sectionId: '__top__'
+    },
+    {
+        keywords: ['lich su', 'tra cuu', 'ket qua cu', 'history'],
+        route: '/history'
+    },
+    {
+        keywords: ['ho so', 'cai dat', 'thong tin tai khoan', 'profile', 'settings'],
+        route: '/profile'
+    }
+];
+
+function findAppSearchTarget(query) {
+    for (const target of appSearchTargets) {
+        for (const keyword of target.keywords) {
+            if (query.includes(keyword) || keyword.includes(query)) {
+                return target;
+            }
+        }
+    }
+    return null;
+}
+
+function runAppSearch(rawValue) {
+    const query = normalizeSearchText(rawValue).trim();
+    if (!query) return;
+
+    const target = findAppSearchTarget(query);
+    if (!target) {
+        showScanToast('Khong tim thay chuc nang phu hop. Thu lai voi tu khoa khac.', 'error');
+        return;
+    }
+
+    if (target.route) {
+        window.location.href = target.route;
+        return;
+    }
+
+    if (target.sectionId === '__top__') {
+        const container = document.getElementById('mainContent');
+        if (container) {
+            container.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        return;
+    }
+
+    if (target.sectionId === 'uploadSection') {
+        goToUploadSection();
+        return;
+    }
+
+    scrollToAppSection(target.sectionId);
+}
+
+historySearchInput.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    runAppSearch(historySearchInput.value || '');
+});
+
+historyDateFromInput.addEventListener('change', (event) => {
+    historyDateFrom = event.target.value || '';
+    renderHistory();
+    if (historyDateFrom || historyDateTo) scrollToAppSection('lookupHistorySection');
+});
+
+historyDateToInput.addEventListener('change', (event) => {
+    historyDateTo = event.target.value || '';
+    renderHistory();
+    if (historyDateFrom || historyDateTo) scrollToAppSection('lookupHistorySection');
+});
+
+historyFilterClearBtn.addEventListener('click', () => {
+    historySearchTerm = '';
+    historyDateFrom = '';
+    historyDateTo = '';
+    historySearchInput.value = '';
+    historyDateFromInput.value = '';
+    historyDateToInput.value = '';
+    renderHistory();
+});
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function renderAvatar(fullname, avatarUrl = '') {
+    const avatarImage = document.getElementById('avatar-image');
+    const avatarInitial = document.getElementById('avatar-initial');
+    if (fullname) {
+        document.getElementById('auth-buttons').style.display = 'none';
+        document.getElementById('user-avatar').style.display = 'block';
+        avatarInitial.textContent = fullname.trim().charAt(0).toUpperCase();
+
+        if (avatarUrl) {
+            avatarImage.src = avatarUrl;
+            avatarImage.onerror = () => {
+                avatarImage.classList.add('hidden');
+                avatarImage.removeAttribute('src');
+                avatarInitial.classList.remove('hidden');
+            };
+            avatarImage.classList.remove('hidden');
+            avatarInitial.classList.add('hidden');
+        } else {
+            avatarImage.classList.add('hidden');
+            avatarImage.removeAttribute('src');
+            avatarInitial.classList.remove('hidden');
+        }
+    } else {
+        document.getElementById('auth-buttons').style.display = 'block';
+        document.getElementById('user-avatar').style.display = 'none';
+        avatarImage.classList.add('hidden');
+        avatarImage.removeAttribute('src');
+        avatarInitial.classList.remove('hidden');
+    }
+}
+
+function stopDbHealthPolling() {
+    if (dbHealthTimerId) {
+        clearInterval(dbHealthTimerId);
+        dbHealthTimerId = null;
+    }
+}
+
+function hideAdminDbHealthSection() {
+    stopDbHealthPolling();
+    if (adminHealthSection) adminHealthSection.classList.add('hidden');
+}
+
+function renderDbHealth(data) {
+    if (!dbHealthBadge || !dbBackendValue || !dbNameValue || !dbPingValue || !dbHealthMeta || !dbHealthError) return;
+
+    const connected = !!(data && data.connected);
+    dbBackendValue.textContent = (data && data.backend) ? String(data.backend).toUpperCase() : '-';
+    dbNameValue.textContent = (data && data.database) ? String(data.database) : '-';
+    dbPingValue.textContent = data && Number.isFinite(Number(data.pingMs)) ? `${Number(data.pingMs)} ms` : '-';
+    dbHealthMeta.textContent = `Lần kiểm tra gần nhất: ${data && data.checkedAt ? data.checkedAt : '-'}`;
+
+    if (connected) {
+        dbHealthBadge.textContent = 'Đã kết nối';
+        dbHealthBadge.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-200';
+        dbHealthError.classList.add('hidden');
+        dbHealthError.textContent = '';
+    } else {
+        dbHealthBadge.textContent = 'Mất kết nối';
+        dbHealthBadge.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200';
+        dbHealthError.textContent = data && data.error ? `Chi tiết: ${data.error}` : 'Không thể kết nối cơ sở dữ liệu.';
+        dbHealthError.classList.remove('hidden');
+    }
+}
+
+async function loadAdminDbHealth() {
+    if (!isAuthenticated || currentUserRole !== 'admin') return;
+    try {
+        const response = await fetch('/api/admin/db-health');
+        const data = await response.json();
+        if (!response.ok || !data.success || !data.data) {
+            renderDbHealth({ connected: false, error: data.error || 'Không tải được trạng thái DB.' });
+            return;
+        }
+        renderDbHealth(data.data);
+    } catch (err) {
+        renderDbHealth({ connected: false, error: 'Không thể kết nối tới API DB health.' });
+    }
+}
+
+function initAdminDbHealth() {
+    if (!adminHealthSection) return;
+    if (!isAuthenticated || currentUserRole !== 'admin') {
+        hideAdminDbHealthSection();
+        return;
+    }
+
+    adminHealthSection.classList.remove('hidden');
+    loadAdminDbHealth();
+    stopDbHealthPolling();
+    dbHealthTimerId = setInterval(loadAdminDbHealth, 10000);
+}
+
+async function refreshCurrentUserProfile() {
+    if (!isAuthenticated) return;
+    try {
+        const response = await fetch('/api/profile');
+        const data = await response.json();
+        if (!response.ok || !data.success || !data.data) return;
+
+        currentUserFullname = data.data.fullname || currentUserFullname || '';
+        currentUserPhone = data.data.phone || '';
+        currentUserAvatarUrl = data.data.avatar_url || currentUserAvatarUrl || '';
+        sessionStorage.setItem('fullname', currentUserFullname);
+        sessionStorage.setItem('email', data.data.email || '');
+        sessionStorage.setItem('phone', currentUserPhone);
+        sessionStorage.setItem('role', data.data.role || currentUserRole || 'user');
+        sessionStorage.setItem('avatar_url', currentUserAvatarUrl);
+        currentUserRole = data.data.role || currentUserRole || 'user';
+        renderAvatar(currentUserFullname, currentUserAvatarUrl);
+        initAdminDbHealth();
+    } catch (err) {
+        // Ignore temporary profile refresh failures.
+    }
+}
+
+// Hiển thị avatar nếu đã đăng nhập
+async function showUserAvatar() {
+    const fullname = sessionStorage.getItem('fullname');
+    const phone = sessionStorage.getItem('phone');
+    const role = sessionStorage.getItem('role');
+    const avatarUrl = sessionStorage.getItem('avatar_url') || '';
+    if (fullname) {
+        isAuthenticated = true;
+        currentUserRole = role || 'user';
+        currentUserFullname = fullname;
+        currentUserPhone = phone || '';
+        currentUserAvatarUrl = avatarUrl;
+        renderAvatar(fullname, avatarUrl);
+        await refreshCurrentUserProfile();
+        await loadHistory();
+        await loadSummaryStats();
+        initAdminDbHealth();
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/profile');
+        const data = await response.json();
+        if (response.ok && data.success && data.data && data.data.fullname) {
+            sessionStorage.setItem('fullname', data.data.fullname);
+            sessionStorage.setItem('email', data.data.email || '');
+            sessionStorage.setItem('phone', data.data.phone || '');
+            sessionStorage.setItem('role', data.data.role || 'user');
+            sessionStorage.setItem('avatar_url', data.data.avatar_url || '');
+            isAuthenticated = true;
+            currentUserRole = data.data.role || 'user';
+            currentUserFullname = data.data.fullname || '';
+            currentUserPhone = data.data.phone || '';
+            currentUserAvatarUrl = data.data.avatar_url || '';
+            renderAvatar(data.data.fullname, currentUserAvatarUrl);
+            await loadHistory();
+            await loadSummaryStats();
+            initAdminDbHealth();
+            return;
+        }
+    } catch (err) {
+        // Keep guest mode if the profile API cannot be reached.
+    }
+
+    isAuthenticated = false;
+    currentUserRole = 'guest';
+    currentUserFullname = '';
+    currentUserPhone = '';
+    currentUserAvatarUrl = '';
+    renderAvatar('', '');
+    hideAdminDbHealthSection();
+    await loadHistory();
+    await loadSummaryStats();
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+    await showUserAvatar();
+});
+</script>
+</script>
+</body>
+</html>

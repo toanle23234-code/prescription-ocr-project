@@ -1,0 +1,39 @@
+# Virtual environments
+.venv/
+.venv-1/
+venv/
+
+# Environment variables
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Uploads
+uploads/
+
+# Data
+data/
+
+# Database binary
+*.db
+
+# Test images
+*.png
+*.jpg
+*.jpeg
+
+# Debug/temp files
+debug_*.py
+fix_*.py
+force_logout.py
+reset_password.py
+script_dump.txt
+tail.txt
+test_encode.txt
+
+# IDE
+.vscode/
+.idea/

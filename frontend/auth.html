@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập / Đăng ký - Trợ Lý Y Tế AI</title>
+    <link rel="icon" type="image/svg+xml" href="/frontend/brand/favicon.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: "Plus Jakarta Sans", sans-serif; background: #0f172a; color: white; overflow-x: hidden; min-height: 100vh; }
+        #canvas-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }
+        .glass-panel { background: rgba(30, 41, 59, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .input-glass { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); color: white; transition: all 0.3s ease; }
+        .input-glass:focus { border-color: #3b82f6; box-shadow: 0 0 15px rgba(59, 130, 246, 0.3); outline: none; }
+        .toggle-btn.active { color: white; border-bottom: 2px solid #3b82f6; }
+        .toggle-btn { color: #94a3b8; border-bottom: 2px solid transparent; transition: all 0.3s ease; }
+        /* Toast notification */
+        #toast-container { position: fixed; top: 1.5rem; right: 1.5rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none; }
+        .toast { display: flex; align-items: center; gap: 0.6rem; padding: 0.75rem 1.1rem; border-radius: 0.75rem; font-size: 0.875rem; font-weight: 500; backdrop-filter: blur(10px); pointer-events: auto; max-width: 340px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); animation: slideIn 0.3s ease; }
+        .toast-success { background: rgba(16,185,129,0.2); border: 1px solid rgba(16,185,129,0.4); color: #6ee7b7; }
+        .toast-error   { background: rgba(239,68,68,0.2);  border: 1px solid rgba(239,68,68,0.4);  color: #fca5a5; }
+        .toast-info    { background: rgba(59,130,246,0.2); border: 1px solid rgba(59,130,246,0.4); color: #93c5fd; }
+        @keyframes slideIn { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(120%); opacity: 0; } }
+        /* Loading spinner */
+        .btn-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        /* OTP timer */
+        #otp-timer-bar { height: 3px; background: linear-gradient(to right, #3b82f6, #6366f1); border-radius: 9999px; transition: width 1s linear; }
+        #otp-timer-track { background: rgba(255,255,255,0.08); border-radius: 9999px; overflow: hidden; margin-bottom: 0.75rem; }
+        .field-error { color: #f87171; font-size: 0.75rem; margin-top: 0.3rem; }
+    </style>
+</head>
+<body class="flex items-center justify-center">
+
+    <div id="canvas-container"></div>
+    <div id="toast-container"></div>
+    
+    <div class="absolute top-6 left-6 z-10">
+        <a href="/" class="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            <span>Về trang chủ</span>
+        </a>
+    </div>
+
+    <div class="max-w-md w-full mx-4 glass-panel rounded-2xl shadow-2xl overflow-hidden relative z-10" id="auth-box">
+        <div class="px-8 pt-8 pb-6">
+            <div class="flex justify-center mb-6">
+                <img src="/frontend/brand/favicon.svg" alt="Logo" class="w-16 h-16 rounded-2xl shadow-lg">
+            </div>
+            
+            <h2 class="text-2xl font-bold text-center mb-2" id="auth-title">Chào mừng trở lại</h2>
+            <p class="text-slate-400 text-sm text-center mb-8" id="auth-subtitle">Đăng nhập để quản lý lịch sử đơn thuốc</p>
+
+            <div class="flex mb-6 border-b border-slate-700/50">
+                <button class="flex-1 pb-3 font-medium toggle-btn active" onclick="switchTab(`login`)" id="tab-login">Đăng nhập</button>
+                <button class="flex-1 pb-3 font-medium toggle-btn" onclick="switchTab(`register`)" id="tab-register">Đăng ký</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" class="space-y-4" onsubmit="event.preventDefault();">
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-1">Email</label>
+                    <div class="relative">
+                        <i data-lucide="mail" class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                        <input type="email" id="login-email" class="w-full input-glass rounded-xl py-3 pl-10 pr-4" placeholder="nhapemail@example.com">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-1">Mật khẩu</label>
+                    <div class="relative">
+                        <i data-lucide="lock" class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                        <input type="password" id="login-password" class="w-full input-glass rounded-xl py-3 pl-10 pr-4" placeholder="">
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-sm mt-2">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" class="rounded bg-slate-800 border-slate-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-900">
+                        <span class="text-slate-400">Ghi nhớ</span>
+                    </label>
+                    <a href="/forgot-password" class="text-blue-400 hover:text-blue-300">Quên mật khẩu?</a>
+                </div>
+                <button type="button" id="btn-login" onclick="handleLogin()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-medium py-3 rounded-xl transition-all shadow-lg shadow-blue-500/25 mt-6 border border-blue-400/20">
+                    Đăng nhập
+                </button>
+            </form>
+
+            <!-- Register Form -->
+
+            <form id="register-form" class="space-y-4 hidden" onsubmit="event.preventDefault();">
+                <div id="register-step-1">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-1">Họ và tên</label>
+                        <div class="relative">
+                            <i data-lucide="user" class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                            <input type="text" id="reg-fullname" class="w-full input-glass rounded-xl py-3 pl-10 pr-4" placeholder="Nguyễn Văn A">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-1">Email</label>
+                        <div class="relative">
+                            <i data-lucide="mail" class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                            <input type="email" id="reg-email" class="w-full input-glass rounded-xl py-3 pl-10 pr-4" placeholder="nhapemail@example.com">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-1">Mật khẩu</label>
+                        <div class="relative">
+                            <i data-lucide="lock" class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                            <input type="password" id="reg-password" class="w-full input-glass rounded-xl py-3 pl-10 pr-4" placeholder="">
+                        </div>
+                    </div>
+                    <button type="button" id="btn-send-otp" onclick="handleRegisterRequestOTP()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-medium py-3 rounded-xl transition-all shadow-lg shadow-blue-500/25 mt-6 border border-blue-400/20">
+                        Gửi mã OTP
+                    </button>
+                </div>
+                <div id="register-step-2" class="hidden">
+                    <div class="mb-2 text-center text-slate-400 text-sm">Mã OTP đã được gửi tới email của bạn. Vui lòng kiểm tra email và nhập mã OTP để hoàn tất đăng ký.</div>
+                    <!-- Timer bar -->
+                    <div id="otp-timer-track" class="mt-2 mb-3">
+                        <div id="otp-timer-bar" style="width:100%"></div>
+                    </div>
+                    <p id="otp-timer-text" class="text-center text-xs text-slate-400 mb-3">OTP còn hiệu lực: <span id="otp-countdown" class="text-blue-400 font-semibold">5:00</span></p>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-1">Mã OTP</label>
+                        <div class="relative">
+                            <i data-lucide="key" class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                            <input type="text" id="reg-otp" inputmode="numeric" maxlength="6"
+                                   class="w-full input-glass rounded-xl py-3 pl-10 pr-4 tracking-widest text-center text-lg font-bold"
+                                   placeholder="● ● ● ● ● ●">
+                        </div>
+                        <p id="otp-field-error" class="field-error hidden"></p>
+                    </div>
+                    <button type="button" id="btn-verify-otp" onclick="handleRegisterVerifyOTP()"
+                            class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-medium py-3 rounded-xl transition-all shadow-lg shadow-blue-500/25 mt-4 border border-blue-400/20">
+                        Xác nhận đăng ký
+                    </button>
+                    <div class="flex items-center justify-between mt-3">
+                        <button type="button" onclick="backToRegisterStep1()" class="text-slate-400 hover:text-slate-200 text-sm">← Quay lại</button>
+                        <button type="button" id="btn-resend-otp" onclick="handleResendOTP()"
+                                class="text-blue-400 hover:text-blue-300 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                                disabled>
+                            Gửi lại OTP (<span id="resend-countdown">60</span>s)
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+        </div>
+    </div>
+
+    <!-- Canvas Animation Script -->
+    <script>
+
+        lucide.createIcons();
+
+        // ─── Toast Notification System ─────────────────────────────────────
+        function showToast(message, type = 'info', duration = 4000) {
+            const container = document.getElementById('toast-container');
+            const iconMap = { success: 'check-circle', error: 'x-circle', info: 'info' };
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `<i data-lucide="${iconMap[type] || 'info'}" style="width:18px;height:18px;flex-shrink:0;"></i><span>${message}</span>`;
+            container.appendChild(toast);
+            lucide.createIcons({ nodes: [toast] });
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        function setFieldError(fieldId, message) {
+            const el = document.getElementById(fieldId);
+            if (!el) return;
+            el.textContent = message;
+            el.classList.toggle('hidden', !message);
+        }
+
+        function setButtonLoading(btnId, loading, defaultText) {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            btn.disabled = loading;
+            btn.innerHTML = loading
+                ? `<span class="btn-spinner"></span>${defaultText}...`
+                : defaultText;
+        }
+
+        // ─── OTP Countdown Timer ────────────────────────────────────────────
+        let otpTimerInterval = null;
+        let resendCooldownInterval = null;
+
+        function startOtpTimer(seconds = 300) {
+            clearInterval(otpTimerInterval);
+            const bar = document.getElementById('otp-timer-bar');
+            const countdown = document.getElementById('otp-countdown');
+            const totalSeconds = seconds;
+            let remaining = seconds;
+
+            function tick() {
+                remaining--;
+                const mins = Math.floor(remaining / 60);
+                const secs = remaining % 60;
+                countdown.textContent = `${mins}:${secs.toString().padStart(2,'0')}`;
+                bar.style.width = `${(remaining / totalSeconds) * 100}%`;
+                bar.style.background = remaining < 60
+                    ? 'linear-gradient(to right,#ef4444,#f97316)'
+                    : 'linear-gradient(to right,#3b82f6,#6366f1)';
+                if (remaining <= 0) {
+                    clearInterval(otpTimerInterval);
+                    countdown.textContent = 'Hết hạn';
+                    countdown.classList.replace('text-blue-400', 'text-red-400');
+                    showToast('Mã OTP đã hết hạn. Vui lòng gửi lại.', 'error');
+                }
+            }
+
+            otpTimerInterval = setInterval(tick, 1000);
+        }
+
+        function startResendCooldown(seconds = 60) {
+            clearInterval(resendCooldownInterval);
+            const btn = document.getElementById('btn-resend-otp');
+            const cdSpan = document.getElementById('resend-countdown');
+            let remaining = seconds;
+            btn.disabled = true;
+            btn.innerHTML = `Gửi lại OTP (<span id="resend-countdown">${remaining}</span>s)`;
+
+            resendCooldownInterval = setInterval(() => {
+                remaining--;
+                const span = document.getElementById('resend-countdown');
+                if (span) span.textContent = remaining;
+                if (remaining <= 0) {
+                    clearInterval(resendCooldownInterval);
+                    btn.disabled = false;
+                    btn.innerHTML = 'Gửi lại OTP';
+                }
+            }, 1000);
+        }
+
+        // ─── Canvas Animation (Neural Network background) ──────────────────
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        document.getElementById("canvas-container").appendChild(canvas);
+
+        let width, height, particles;
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            initParticles();
+        }
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.vx = (Math.random() - 0.5) * 1;
+                this.vy = (Math.random() - 0.5) * 1;
+                this.radius = Math.random() * 2 + 1;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.x < 0 || this.x > width) this.vx = -this.vx;
+                if (this.y < 0 || this.y > height) this.vy = -this.vy;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = "rgba(59, 130, 246, 0.5)";
+                ctx.fill();
+            }
+        }
+
+        function initParticles() {
+            particles = [];
+            const numParticles = Math.floor((width * height) / 15000);
+            for (let i = 0; i < numParticles; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 150) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(59, 130, 246, ${1 - dist / 150})`;
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+            particles.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener("resize", resize);
+        resize();
+        animate();
+
+        // Entry animation
+        gsap.from("#auth-box", { y: 30, opacity: 0, duration: 0.8, ease: "power3.out" });
+
+        // ─── Form switching logic ───────────────────────────────────────────
+        function switchTab(tab) {
+            const loginForm = document.getElementById("login-form");
+            const registerForm = document.getElementById("register-form");
+            const tabLogin = document.getElementById("tab-login");
+            const tabRegister = document.getElementById("tab-register");
+            const title = document.getElementById("auth-title");
+            const subtitle = document.getElementById("auth-subtitle");
+
+            gsap.to([loginForm, registerForm], { opacity: 0, duration: 0.2, onComplete: () => {
+                if (tab === "login") {
+                    loginForm.classList.remove("hidden");
+                    registerForm.classList.add("hidden");
+                    tabLogin.classList.add("active");
+                    tabRegister.classList.remove("active");
+                    title.textContent = "Chào mừng trở lại";
+                    subtitle.textContent = "Đăng nhập để quản lý lịch sử đơn thuốc";
+                } else {
+                    registerForm.classList.remove("hidden");
+                    loginForm.classList.add("hidden");
+                    tabRegister.classList.add("active");
+                    tabLogin.classList.remove("active");
+                    title.textContent = "Tạo tài khoản mới";
+                    subtitle.textContent = "Tham gia để sử dụng tính năng của chúng tôi";
+                }
+                gsap.to(tab === "login" ? loginForm : registerForm, { opacity: 1, duration: 0.2 });
+            }});
+        }
+
+        window.addEventListener('DOMContentLoaded', function() {
+            if (window.location.hash === '#register') {
+                switchTab('register');
+            } else {
+                switchTab('login');
+            }
+        });
+
+        // ─── Login ──────────────────────────────────────────────────────────
+        async function handleLogin() {
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+
+            if (!email || !password) {
+                showToast("Vui lòng nhập đầy đủ email và mật khẩu.", 'error');
+                return;
+            }
+
+            setButtonLoading('btn-login', true, 'Đăng nhập');
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    gsap.to("#auth-box", {
+                        scale: 0.95, opacity: 0, duration: 0.4, ease: "power2.in",
+                        onComplete: () => { window.location.href = "/"; }
+                    });
+                } else {
+                    showToast(data.error || "Đăng nhập thất bại.", 'error');
+                }
+            } catch (err) {
+                showToast("Lỗi kết nối đến máy chủ.", 'error');
+            } finally {
+                setButtonLoading('btn-login', false, 'Đăng nhập');
+            }
+        }
+
+        // ─── Register Step 1: Gửi OTP ───────────────────────────────────────
+        async function handleRegisterRequestOTP() {
+            const fullname = document.getElementById('reg-fullname').value.trim();
+            const email    = document.getElementById('reg-email').value.trim();
+            const password = document.getElementById('reg-password').value;
+
+            if (!fullname || !email || !password) {
+                showToast("Vui lòng nhập đầy đủ thông tin.", 'error');
+                return;
+            }
+            if (password.length < 6) {
+                showToast("Mật khẩu cần ít nhất 6 ký tự.", 'error');
+                return;
+            }
+
+            setButtonLoading('btn-send-otp', true, 'Gửi mã OTP');
+            try {
+                const response = await fetch('/api/register/request-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fullname, email, password })
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    showToast(data.error || "Gửi OTP thất bại.", 'error');
+                    return;
+                }
+                showToast("Mã OTP đã được gửi! Kiểm tra hộp thư của bạn.", 'success');
+                document.getElementById('register-step-1').classList.add('hidden');
+                document.getElementById('register-step-2').classList.remove('hidden');
+                setFieldError('otp-field-error', '');
+                document.getElementById('reg-otp').value = '';
+                startOtpTimer(300);
+                startResendCooldown(60);
+            } catch (err) {
+                showToast("Lỗi kết nối đến máy chủ.", 'error');
+            } finally {
+                setButtonLoading('btn-send-otp', false, 'Gửi mã OTP');
+            }
+        }
+
+        // ─── Register Step 2: Xác nhận OTP ──────────────────────────────────
+        async function handleRegisterVerifyOTP() {
+            const email = document.getElementById('reg-email').value.trim();
+            const otp   = document.getElementById('reg-otp').value.trim();
+
+            if (!otp) {
+                setFieldError('otp-field-error', 'Vui lòng nhập mã OTP.');
+                return;
+            }
+            if (!/^\d{6}$/.test(otp)) {
+                setFieldError('otp-field-error', 'Mã OTP gồm đúng 6 chữ số.');
+                return;
+            }
+            setFieldError('otp-field-error', '');
+
+            setButtonLoading('btn-verify-otp', true, 'Xác nhận đăng ký');
+            try {
+                const verifyRes = await fetch('/api/register/verify-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, otp })
+                });
+                const verifyData = await verifyRes.json();
+                if (!verifyData.success) {
+                    setFieldError('otp-field-error', verifyData.error || "OTP không đúng.");
+                    showToast(verifyData.error || "OTP không đúng.", 'error');
+                    return;
+                }
+                clearInterval(otpTimerInterval);
+                showToast("Đăng ký thành công! Mời bạn đăng nhập.", 'success', 5000);
+                switchTab('login');
+                // Reset form
+                document.getElementById('register-step-2').classList.add('hidden');
+                document.getElementById('register-step-1').classList.remove('hidden');
+                document.getElementById('register-form').reset();
+            } catch (err) {
+                showToast("Lỗi kết nối đến máy chủ.", 'error');
+            } finally {
+                setButtonLoading('btn-verify-otp', false, 'Xác nhận đăng ký');
+            }
+        }
+
+        // ─── Gửi lại OTP ────────────────────────────────────────────────────
+        async function handleResendOTP() {
+            const email = document.getElementById('reg-email').value.trim();
+            const btn = document.getElementById('btn-resend-otp');
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/register/resend-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    showToast(data.error || "Không gửi được OTP.", 'error');
+                    if (data.wait_seconds) {
+                        startResendCooldown(data.wait_seconds);
+                    } else {
+                        btn.disabled = false;
+                        btn.innerHTML = 'Gửi lại OTP';
+                    }
+                    return;
+                }
+                showToast("Mã OTP mới đã được gửi!", 'success');
+                document.getElementById('reg-otp').value = '';
+                setFieldError('otp-field-error', '');
+                startOtpTimer(300);
+                startResendCooldown(60);
+            } catch (err) {
+                showToast("Lỗi kết nối đến máy chủ.", 'error');
+                btn.disabled = false;
+                btn.innerHTML = 'Gửi lại OTP';
+            }
+        }
+
+        function backToRegisterStep1() {
+            clearInterval(otpTimerInterval);
+            clearInterval(resendCooldownInterval);
+            document.getElementById('register-step-2').classList.add('hidden');
+            document.getElementById('register-step-1').classList.remove('hidden');
+        }
+
+    </script>
+    </script>
+</body>
+</html>

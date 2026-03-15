@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html class="light" lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Lịch sử tra cứu - OCR Thuốc</title>
+    <link rel="icon" type="image/svg+xml" href="/frontend/brand/favicon.svg">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&family=Noto+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/vn.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { DEFAULT: "#0ea5a4", 600: "#068585" },
+                        accent: { DEFAULT: "#22c55e" },
+                        dark: { 800: "#1e293b", 900: "#0f172a" }
+                    },
+                    fontFamily: { display: ["Poppins", "Inter", "sans-serif"], body: ["Inter", "sans-serif"] },
+                }
+            }
+        };
+    </script>
+    <style>
+        body {
+            font-family: "Inter", "Noto Sans", sans-serif;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+        }
+        h1, h2, h3, .font-display {
+            font-family: "Poppins", "Inter", "Noto Sans", sans-serif;
+            letter-spacing: -0.01em;
+        }
+        .glass { background: rgba(255,255,255,0.64); backdrop-filter: blur(20px) saturate(180%); border: 1px solid rgba(255,255,255,0.3); }
+        .dark .glass { background: rgba(30,41,59,0.64); border-color: rgba(255,255,255,0.08); }
+        .sidebar-link { transition: all 0.3s ease; }
+        .sidebar-link.active { background: rgba(14,165,164,0.1); color: #0ea5a4; font-weight: 700; }
+        .history-card {
+            transition: all 0.35s ease;
+            background: rgba(255, 255, 255, 0.78) !important;
+            border: 1px solid rgba(148, 163, 184, 0.30);
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+        }
+        .dark .history-card {
+            background: rgba(30, 41, 59, 0.64) !important;
+            border-color: rgba(148, 163, 184, 0.28);
+        }
+        .history-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(20, 184, 166, 0.45);
+            box-shadow: 0 12px 34px rgba(14,165,164,0.14);
+        }
+        .rename-modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 70;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            background: rgba(2, 6, 23, 0.58);
+            backdrop-filter: blur(3px);
+        }
+        .rename-modal-card {
+            width: min(560px, 100%);
+            border-radius: 18px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background: linear-gradient(145deg, rgba(30,41,59,0.94), rgba(15,23,42,0.96));
+            box-shadow: 0 18px 44px rgba(2, 132, 199, 0.23);
+            padding: 20px;
+        }
+        .rename-input {
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background: rgba(15, 23, 42, 0.72);
+            color: #e2e8f0;
+            padding: 11px 12px;
+            outline: none;
+            transition: all 0.25s ease;
+        }
+        .rename-input:focus {
+            border-color: rgba(20, 184, 166, 0.7);
+            box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
+        }
+        .rename-action {
+            border-radius: 12px;
+            padding: 8px 16px;
+            font-weight: 700;
+            transition: all 0.2s ease;
+        }
+        .rename-action:hover { transform: translateY(-1px); }
+        .notice-modal-title {
+            color: #f1f5f9;
+            font-weight: 800;
+            font-size: 1.08rem;
+        }
+        .notice-modal-text {
+            color: #cbd5e1;
+            font-size: 0.95rem;
+            line-height: 1.55;
+            margin-top: 0.4rem;
+        }
+        .brand-logo-image {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 12px;
+            display: block;
+            box-shadow: 0 6px 14px rgba(14, 165, 164, 0.24);
+        }
+        .brand-logo-fallback {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #60a5fa 0%, #1d4ed8 100%);
+            color: #ffffff;
+            font-size: 20px;
+            font-weight: 700;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 14px rgba(29, 78, 216, 0.35);
+        }
+        .print-only { display: none; }
+        @media print {
+            body {
+                background: #ffffff !important;
+                color: #0f172a !important;
+            }
+            aside,
+            main > header,
+            main > section:not(#result),
+            #result > .flex.items-center.justify-between,
+            #result button,
+            #themeToggle {
+                display: none !important;
+            }
+            main {
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            #result {
+                display: block !important;
+                background: #ffffff !important;
+                border: 0 !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            #resultText {
+                border: 1px solid #cbd5e1 !important;
+                background: #ffffff !important;
+                color: #0f172a !important;
+                box-shadow: none !important;
+                border-radius: 12px !important;
+                font-size: 12.5px !important;
+                line-height: 1.6 !important;
+                padding: 16px !important;
+                white-space: pre-wrap !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            #resultPrintHeader {
+                border: 1px solid #cbd5e1;
+                border-radius: 14px;
+                padding: 14px 16px;
+                margin-bottom: 12px;
+                background: #f8fafc;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 via-white to-teal-50/30 dark:from-dark-900 dark:via-dark-900 dark:to-slate-900 text-slate-900 dark:text-slate-200 min-h-screen font-body">
+<div class="flex min-h-screen">
+    <aside class="w-[260px] fixed top-0 left-0 h-full z-40 glass border-r border-primary/10 flex flex-col">
+        <div class="flex items-center gap-3 px-6 py-6 border-b border-primary/10">
+            <div class="w-10 h-10 flex items-center justify-center flex-shrink-0 select-none">
+                <img src="/frontend/brand/logo-ai-engine.png" alt="Logo AI Engine" class="brand-logo-image" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"/>
+                <div class="brand-logo-fallback" aria-hidden="true">💊</div>
+            </div>
+            <span class="font-display font-extrabold text-lg bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">OCR Thuốc</span>
+        </div>
+        <nav class="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
+            <a href="/" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-300 hover:text-primary"><i data-lucide="layout-dashboard" class="w-5 h-5"></i><span>Trang chủ</span></a>
+            <a href="/#uploadSection" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-300 hover:text-primary"><i data-lucide="scan-line" class="w-5 h-5"></i><span>Quét đơn thuốc</span></a>
+            <a href="/stats" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-300 hover:text-primary"><i data-lucide="bar-chart-3" class="w-5 h-5"></i><span>Thống kê</span></a>
+            <a href="/history" class="sidebar-link active flex items-center gap-3 px-4 py-3 rounded-xl"><i data-lucide="history" class="w-5 h-5"></i><span>Lịch sử tra cứu</span></a>
+            <a href="/profile" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-300 hover:text-primary"><i data-lucide="settings" class="w-5 h-5"></i><span>Cài đặt</span></a>
+        </nav>
+    </aside>
+
+    <main class="flex-1 ml-[260px] p-8">
+        <header class="glass rounded-2xl p-4 flex items-center justify-between mb-6">
+            <h1 class="font-display text-2xl font-extrabold">Lịch sử tra cứu</h1>
+            <button id="themeToggle" class="p-2.5 rounded-xl bg-slate-100/80 dark:bg-dark-800/80 hover:bg-primary/10 transition-all" title="Đổi giao diện">
+                <i data-lucide="sun" class="w-5 h-5 text-amber-500 dark:hidden"></i>
+                <i data-lucide="moon" class="w-5 h-5 text-blue-400 hidden dark:block"></i>
+            </button>
+        </header>
+
+        <section class="glass rounded-2xl p-5 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <input id="historySearchInput" type="text" placeholder="Tìm theo tên ảnh hoặc ngày dd/mm/yyyy (vd: 13/03/2026)..." autocomplete="off" spellcheck="false" class="md:col-span-2 rounded-xl bg-slate-100/80 dark:bg-dark-800/80 border border-slate-200 dark:border-dark-700 px-4 py-2.5 text-sm" />
+                <input id="historyDateFrom" type="text" inputmode="numeric" placeholder="Từ ngày (dd/mm/yyyy)" autocomplete="off" class="rounded-xl bg-slate-100/80 dark:bg-dark-800/80 border border-slate-200 dark:border-dark-700 px-3 py-2.5 text-sm" />
+                <input id="historyDateTo" type="text" inputmode="numeric" placeholder="Đến ngày (dd/mm/yyyy)" autocomplete="off" class="rounded-xl bg-slate-100/80 dark:bg-dark-800/80 border border-slate-200 dark:border-dark-700 px-3 py-2.5 text-sm" />
+            </div>
+            <div class="mt-3 flex gap-3">
+                <button id="historyFilterClearBtn" class="rounded-xl border border-slate-300 dark:border-dark-700 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300">Xóa bộ lọc</button>
+                <button id="clearHistoryBtn" class="rounded-xl border border-red-300 dark:border-red-800/60 px-3 py-2 text-sm font-semibold text-red-500">Xóa lịch sử</button>
+            </div>
+        </section>
+
+        <section id="result" class="hidden glass rounded-2xl p-5 mb-6">
+            <div class="flex items-center justify-between gap-3 mb-3">
+                <h3 class="font-display font-bold text-lg">Kết quả đơn đã chọn</h3>
+                <div class="flex items-center gap-2">
+                    <button id="savePdfBtn" class="text-sm text-blue-500 hover:bg-blue-500/10 font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all">
+                        <i data-lucide="file-down" class="w-4 h-4"></i> In / PDF
+                    </button>
+                    <button id="sendEmailBtn" class="text-sm text-emerald-500 hover:bg-emerald-500/10 font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all">
+                        <i data-lucide="send" class="w-4 h-4"></i> Gửi mail
+                    </button>
+                    <button id="deleteResultBtn" class="text-sm text-red-500 hover:bg-red-500/10 font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i> Xóa đơn
+                    </button>
+                </div>
+            </div>
+            <div id="resultPrintHeader" class="print-only">
+                <div style="display:flex;align-items:flex-start;gap:14px;">
+                    <svg width="58" height="58" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="flex-shrink:0;">
+                        <defs>
+                            <linearGradient id="pillBgPrint" x1="10" y1="8" x2="54" y2="56" gradientUnits="userSpaceOnUse">
+                                <stop offset="0%" stop-color="#60a5fa"/>
+                                <stop offset="100%" stop-color="#1d4ed8"/>
+                            </linearGradient>
+                            <linearGradient id="pillTopPrint" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#ffe066"/>
+                                <stop offset="100%" stop-color="#d97706"/>
+                            </linearGradient>
+                            <linearGradient id="pillBottomPrint" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#b91c1c"/>
+                                <stop offset="100%" stop-color="#6b0000"/>
+                            </linearGradient>
+                        </defs>
+                        <circle cx="32" cy="32" r="30" fill="url(#pillBgPrint)"/>
+                        <ellipse cx="24" cy="18" rx="8.5" ry="4.8" fill="rgba(255,255,255,0.16)" transform="rotate(-30 24 18)"/>
+                        <g transform="translate(32,32) rotate(-38)">
+                            <path d="M -8,0 L -8,-11 A 8,8 0 0,0 8,-11 L 8,0 Z" fill="url(#pillTopPrint)"/>
+                            <path d="M 8,0 L 8,11 A 8,8 0 0,1 -8,11 L -8,0 Z" fill="url(#pillBottomPrint)"/>
+                            <line x1="-8" y1="0" x2="8" y2="0" stroke="rgba(255,255,255,0.75)" stroke-width="1.3"/>
+                            <path d="M -8,0 L -8,-11 A 8,8 0 0,0 8,-11 L 8,11 A 8,8 0 0,1 -8,11 Z" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+                            <ellipse cx="-2" cy="-9" rx="2.5" ry="3.4" fill="rgba(255,255,255,0.40)" transform="rotate(-10 -2 -9)"/>
+                        </g>
+                    </svg>
+                    <div>
+                        <h2 style="margin:0;color:#0f172a;font-size:20px;line-height:1.25;">Bản in đơn thuốc từ Trợ Lý Y Tế AI</h2>
+                        <p style="margin:8px 0 0;color:#475569;font-size:13px;line-height:1.5;">Tệp: <strong id="printFilename">Không xác định</strong> · Thời gian quét: <strong id="printScannedAt">Không xác định</strong></p>
+                    </div>
+                </div>
+            </div>
+            <pre id="resultText" class="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700 dark:text-slate-300 bg-slate-50/80 dark:bg-dark-900/80 p-5 rounded-xl border border-slate-100 dark:border-dark-700"></pre>
+        </section>
+
+        <section id="historyGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-5"></section>
+
+        <div id="renameModal" class="rename-modal-overlay">
+            <div id="renameModalCard" class="rename-modal-card">
+                <div class="flex items-center gap-2 mb-2">
+                    <i data-lucide="pencil" class="w-4 h-4 text-amber-400"></i>
+                    <h3 class="font-display font-bold text-lg text-slate-100">Đổi tên file ảnh</h3>
+                </div>
+                <p class="text-sm text-slate-400 mb-3">Nhập tên mới để hiển thị trong lịch sử (không cần đuôi ảnh).</p>
+                <input id="renameInput" type="text" class="rename-input" placeholder="Ví dụ: Thuốc tháng này của mẹ" />
+                <div class="mt-4 flex items-center justify-end gap-2">
+                    <button id="renameCancelBtn" type="button" class="rename-action border border-slate-500/50 text-slate-300 hover:bg-slate-700/40">Hủy</button>
+                    <button id="renameSaveBtn" type="button" class="rename-action bg-emerald-500/90 text-white hover:bg-emerald-400">Lưu tên mới</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="noticeModal" class="rename-modal-overlay">
+            <div id="noticeModalCard" class="rename-modal-card">
+                <div class="flex items-center gap-2 mb-1">
+                    <i id="noticeModalIcon" data-lucide="info" class="w-4 h-4 text-sky-400"></i>
+                    <h3 id="noticeModalTitle" class="notice-modal-title">Thông báo</h3>
+                </div>
+                <p id="noticeModalText" class="notice-modal-text"></p>
+                <div class="mt-4 flex items-center justify-end">
+                    <button id="noticeOkBtn" type="button" class="rename-action bg-indigo-400/90 text-slate-900 hover:bg-indigo-300">OK</button>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+lucide.createIcons();
+
+const themeToggle = document.getElementById('themeToggle');
+const historySearchInput = document.getElementById('historySearchInput');
+const historyDateFromInput = document.getElementById('historyDateFrom');
+const historyDateToInput = document.getElementById('historyDateTo');
+const historyFilterClearBtn = document.getElementById('historyFilterClearBtn');
+const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+const historyGrid = document.getElementById('historyGrid');
+const result = document.getElementById('result');
+const resultText = document.getElementById('resultText');
+const savePdfBtn = document.getElementById('savePdfBtn');
+const sendEmailBtn = document.getElementById('sendEmailBtn');
+const deleteResultBtn = document.getElementById('deleteResultBtn');
+const renameModal = document.getElementById('renameModal');
+const renameModalCard = document.getElementById('renameModalCard');
+const renameInput = document.getElementById('renameInput');
+const renameCancelBtn = document.getElementById('renameCancelBtn');
+const renameSaveBtn = document.getElementById('renameSaveBtn');
+const noticeModal = document.getElementById('noticeModal');
+const noticeModalCard = document.getElementById('noticeModalCard');
+const noticeModalIcon = document.getElementById('noticeModalIcon');
+const noticeModalTitle = document.getElementById('noticeModalTitle');
+const noticeModalText = document.getElementById('noticeModalText');
+const noticeOkBtn = document.getElementById('noticeOkBtn');
+const printFilenameEl = document.getElementById('printFilename');
+const printScannedAtEl = document.getElementById('printScannedAt');
+
+let scanHistory = [];
+let historySearchTerm = '';
+let historyDateFrom = '';
+let historyDateTo = '';
+let selectedHistoryId = null;
+let selectedFilename = '';
+let selectedCreatedAtLabel = '';
+let currentUserFullname = '';
+let currentUserPhone = '';
+let renameTargetId = null;
+
+function refreshPrintHeaderMeta() {
+    if (printFilenameEl) {
+        printFilenameEl.textContent = (selectedFilename || 'Không xác định').trim() || 'Không xác định';
+    }
+    if (printScannedAtEl) {
+        printScannedAtEl.textContent = selectedCreatedAtLabel || new Date().toLocaleString('vi-VN');
+    }
+}
+
+function initHistoryDatePickers() {
+    if (typeof flatpickr === 'undefined') return;
+
+    const sharedConfig = {
+        dateFormat: 'd/m/Y',
+        allowInput: false,
+        locale: (flatpickr.l10ns && (flatpickr.l10ns.vn || flatpickr.l10ns.vi)) ? (flatpickr.l10ns.vn || flatpickr.l10ns.vi) : 'default'
+    };
+
+    flatpickr(historyDateFromInput, {
+        ...sharedConfig,
+        onChange: (selectedDates, dateStr) => {
+            historyDateFrom = dateStr || '';
+            renderHistory();
+        }
+    });
+
+    flatpickr(historyDateToInput, {
+        ...sharedConfig,
+        onChange: (selectedDates, dateStr) => {
+            historyDateTo = dateStr || '';
+            renderHistory();
+        }
+    });
+}
+
+const savedTheme = localStorage.getItem('theme');
+if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    document.documentElement.classList.add('dark');
+}
+themeToggle.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    lucide.createIcons();
+});
+
+function parseHistoryDate(createdAt) {
+    if (!createdAt) return { date: '', time: '' };
+    const normalized = createdAt.includes('T') ? createdAt : createdAt.replace(' ', 'T');
+    const parsedDate = new Date(normalized);
+    if (Number.isNaN(parsedDate.getTime())) return { date: createdAt, time: '' };
+    const dateAsDdMmYyyy = parsedDate.toLocaleDateString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
+    return {
+        date: dateAsDdMmYyyy,
+        dateSearch: dateAsDdMmYyyy,
+        time: parsedDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+    };
+}
+
+function normalizeSearchText(value) {
+    return (value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function getFilenameStem(filename) {
+    const name = String(filename || '').trim();
+    const lastDot = name.lastIndexOf('.');
+    if (lastDot <= 0) return name;
+    return name.slice(0, lastDot);
+}
+
+function normalizeOcrLine(rawLine) {
+    let line = (rawLine || '').replace(/\s+/g, ' ').trim();
+    if (!line) return '';
+
+    line = line
+        .replace(/\s*:\s*/g, ': ')
+        .replace(/\s*;\s*/g, '; ')
+        .replace(/\s*,\s*/g, ', ')
+        .replace(/\s+([,;:.!?])/g, '$1')
+        .replace(/([:;,.!?])(?!\s|$)/g, '$1 ')
+        .replace(/\(\s+/g, '(')
+        .replace(/\s+\)/g, ')')
+        .replace(/(\d)\s*(Kg|kg)\b/g, '$1 kg')
+        .replace(/(\d)\s*(Ml|ML|ml)\b/g, '$1 ml')
+        .replace(/(\d)\s*(Mg|MG|mg)\b/g, '$1 mg')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+    return line;
+}
+
+function splitByMedicalFields(line) {
+    const withBreaks = line.replace(
+        /\s+(?=(Họ tên|NS|Ns|Địa chỉ|Điện thoại|Sinh hiệu|Thân nhiệt|Huyết áp|Cân nặng|Chẩn đoán|Chuẩn đoán|Điều trị|Bệnh kèm theo)\s*:)/gi,
+        '\n'
+    );
+    return withBreaks.split('\n').map((part) => part.trim()).filter(Boolean);
+}
+
+function buildCompactInfoBody(patientInfoRows) {
+    const compactLines = patientInfoRows
+        .flatMap((line) => splitByMedicalFields(normalizeOcrLine(line)))
+        .map((line) => line.replace(/^~+\s*/, '').trim())
+        .filter((line) => line.length > 0)
+        .filter((line) => !/^(ĐƠN THUỐC|DON THUOC)$/i.test(line))
+        .filter((line) => !/^[^:]{1,40}:\s*$/i.test(line));
+
+    if (compactLines.length === 0) {
+        return [[
+            {
+                text: 'Không tách được thông tin hành chính từ OCR.',
+                colSpan: 2,
+                fontSize: 10,
+                color: '#64748b',
+                margin: [8, 8, 8, 8],
+                fillColor: '#ffffff'
+            },
+            {}
+        ]];
+    }
+
+    const body = [];
+    for (let i = 0; i < compactLines.length; i += 2) {
+        const fillColor = (Math.floor(i / 2) % 2 === 0) ? '#ffffff' : '#f8fafc';
+        body.push([
+            { text: compactLines[i], fontSize: 10.5, color: '#1e293b', margin: [8, 5, 8, 5], fillColor },
+            { text: compactLines[i + 1] || '', fontSize: 10.5, color: '#1e293b', margin: [8, 5, 8, 5], fillColor }
+        ]);
+    }
+    return body;
+}
+
+function tryParseMedicineRow(line) {
+    const match = line.match(/^(\d+)\s*[\/.\-)]+\s*(.+)$/);
+    if (!match) return null;
+
+    let rest = match[2].trim();
+    let quantity = '';
+    let inlineDosage = '';
+
+    // Handle "| SL: X" format embedded by structurePrescriptionRows
+    const slMatch = rest.match(/^(.*?)\s*\|\s*SL\s*:\s*(.+)$/i);
+    if (slMatch) {
+        rest = slMatch[1].trim();
+        quantity = slMatch[2].trim();
+    } else {
+        // Try to find dosage keywords embedded within the line
+        const dosageKw = rest.match(/\b(Sáng|Sang|Trưa|Trua|Chiều|Chieu|Tối|Toi|Uống|Uong|Thoa|Bôi|Boi)\b/i);
+        if (dosageKw) {
+            inlineDosage = rest.slice(dosageKw.index).trim();
+            rest = rest.slice(0, dosageKw.index).trim();
+        }
+
+        // Extract quantity from end of remaining name part
+        const quantityMatch = rest.match(/(\d+\s*(Viên|Viện|Ống|Chai|Tuýp|Tuyp|Gói|Goi|ml|mg|UI))$/i);
+        if (quantityMatch) {
+            quantity = quantityMatch[1].trim();
+            rest = rest.slice(0, quantityMatch.index).trim();
+        }
+    }
+
+    return {
+        stt: match[1],
+        name: rest,
+        quantity,
+        dosage: [],
+        inlineDosage
+    };
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+}
+
+function toComparableDate(dateLabel) {
+    if (!dateLabel) return null;
+    if (typeof dateLabel === 'string') {
+        const normalized = dateLabel.includes('T') ? dateLabel : dateLabel.replace(' ', 'T');
+        const direct = new Date(normalized);
+        if (!Number.isNaN(direct.getTime())) return direct;
+
+        const ddmmyyyy = dateLabel.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (ddmmyyyy) {
+            return new Date(Number(ddmmyyyy[3]), Number(ddmmyyyy[2]) - 1, Number(ddmmyyyy[1]));
+        }
+    }
+
+    const parsed = new Date(dateLabel);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+    const match = dateLabel.match(/(\d{1,2})\s+tháng\s+(\d{1,2}),\s*(\d{4})/i);
+    if (!match) return null;
+    return new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+}
+
+function parseUserFilterDateInput(rawValue, endOfDay = false) {
+    const value = String(rawValue || '').trim();
+    if (!value) return null;
+
+    const ddmmyyyy = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (ddmmyyyy) {
+        const day = Number(ddmmyyyy[1]);
+        const month = Number(ddmmyyyy[2]);
+        const year = Number(ddmmyyyy[3]);
+        const date = new Date(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, 0);
+        if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
+            return date;
+        }
+        return null;
+    }
+
+    const yyyymmdd = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (yyyymmdd) {
+        const year = Number(yyyymmdd[1]);
+        const month = Number(yyyymmdd[2]);
+        const day = Number(yyyymmdd[3]);
+        const date = new Date(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, 0);
+        if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
+            return date;
+        }
+    }
+
+    return null;
+}
+
+function getFilteredHistory() {
+    const term = normalizeSearchText(historySearchTerm.trim());
+    return scanHistory.filter((item) => {
+        const filename = normalizeSearchText(item.filename || '');
+        const filenameStem = normalizeSearchText(getFilenameStem(item.filename));
+        const content = normalizeSearchText(`${item.text} ${item.fullText}`);
+        const dateSearch = normalizeSearchText(item.dateSearch || item.date || '');
+        const textOk = !term || filename.includes(term) || filenameStem.includes(term) || content.includes(term) || dateSearch.includes(term);
+
+        const itemDate = toComparableDate(item.createdAtRaw || item.date);
+        const fromDate = parseUserFilterDateInput(historyDateFrom, false);
+        const toDate = parseUserFilterDateInput(historyDateTo, true);
+        let dateOk = true;
+        if (fromDate && itemDate) {
+            if (itemDate < fromDate) dateOk = false;
+        }
+        if (toDate && itemDate) {
+            if (itemDate > toDate) dateOk = false;
+        }
+        return textOk && dateOk;
+    });
+}
+
+function renderHistory() {
+    const visibleHistory = getFilteredHistory();
+    if (scanHistory.length === 0) {
+        historyGrid.innerHTML = `
+            <div class="text-center text-slate-400 col-span-full py-16 glass rounded-2xl">
+                <i data-lucide="inbox" class="w-14 h-14 mx-auto mb-3 opacity-40"></i>
+                <p class="font-medium">Chưa có đơn thuốc nào được quét</p>
+            </div>`;
+        lucide.createIcons();
+        return;
+    }
+
+    if (visibleHistory.length === 0) {
+        historyGrid.innerHTML = `
+            <div class="text-center text-slate-400 col-span-full py-16 glass rounded-2xl">
+                <i data-lucide="search-x" class="w-14 h-14 mx-auto mb-3 opacity-40"></i>
+                <p class="font-medium">Không tìm thấy đơn thuốc phù hợp</p>
+            </div>`;
+        lucide.createIcons();
+        return;
+    }
+
+    historyGrid.innerHTML = visibleHistory.map((item) => `
+        <div class="history-card glass rounded-2xl p-5">
+            <div class="flex items-center gap-2.5 mb-2">
+                <div class="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="file-text" class="w-4 h-4 text-primary"></i>
+                </div>
+                <div class="min-w-0 flex-1">
+                    <h4 class="font-bold text-sm truncate">${escapeHtml(item.filename)}</h4>
+                    <p class="text-xs text-slate-400">${escapeHtml(item.date)} ${item.time ? '• ' + escapeHtml(item.time) : ''}</p>
+                </div>
+                <button onclick="renameHistoryItem(${item.id})" class="px-2 py-1 rounded-lg text-xs font-semibold text-amber-500 hover:bg-amber-500/10 transition-all flex items-center gap-1">
+                    <i data-lucide="pencil" class="w-3.5 h-3.5"></i> Đổi tên
+                </button>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-4 line-clamp-3 leading-relaxed">${escapeHtml(item.text)}</p>
+            <button onclick="viewResultById(${item.id})" class="w-full py-2.5 rounded-xl text-sm font-bold text-primary bg-primary/5 hover:bg-primary hover:text-white transition-all">Xem kết quả</button>
+        </div>
+    `).join('');
+    lucide.createIcons();
+}
+
+async function renameHistoryItem(itemId) {
+    const item = scanHistory.find((entry) => entry.id === itemId);
+    if (!item) return;
+
+    renameTargetId = itemId;
+    renameInput.value = (item.filename || '').trim();
+    renameModal.style.display = 'flex';
+    lucide.createIcons();
+    gsap.fromTo(renameModalCard, { y: 16, opacity: 0, scale: 0.98 }, { y: 0, opacity: 1, scale: 1, duration: 0.24, ease: 'power2.out' });
+    setTimeout(() => {
+        renameInput.focus();
+        renameInput.select();
+    }, 10);
+}
+window.renameHistoryItem = renameHistoryItem;
+
+function closeRenameModal() {
+    if (renameModal.style.display === 'none' || !renameModal.style.display) {
+        renameTargetId = null;
+        return;
+    }
+    gsap.to(renameModalCard, {
+        y: 10,
+        opacity: 0,
+        scale: 0.98,
+        duration: 0.2,
+        ease: 'power2.in',
+        onComplete: () => {
+            renameModal.style.display = 'none';
+            renameTargetId = null;
+            gsap.set(renameModalCard, { clearProps: 'all' });
+        }
+    });
+}
+
+function showNoticeModal(message, type = 'info') {
+    const iconName = type === 'error' ? 'alert-triangle' : (type === 'success' ? 'check-circle-2' : 'info');
+    const iconClass = type === 'error' ? 'w-4 h-4 text-red-400' : (type === 'success' ? 'w-4 h-4 text-emerald-400' : 'w-4 h-4 text-sky-400');
+    const title = type === 'error' ? 'Có lỗi xảy ra' : (type === 'success' ? 'Thành công' : 'Thông báo');
+
+    noticeModalIcon.setAttribute('data-lucide', iconName);
+    noticeModalIcon.className = iconClass;
+    noticeModalTitle.textContent = title;
+    noticeModalText.textContent = message || 'Đã có thông báo từ hệ thống.';
+
+    noticeModal.style.display = 'flex';
+    lucide.createIcons();
+    gsap.fromTo(noticeModalCard, { y: 16, opacity: 0, scale: 0.98 }, { y: 0, opacity: 1, scale: 1, duration: 0.24, ease: 'power2.out' });
+}
+
+function closeNoticeModal() {
+    if (noticeModal.style.display === 'none' || !noticeModal.style.display) return;
+    gsap.to(noticeModalCard, {
+        y: 10,
+        opacity: 0,
+        scale: 0.98,
+        duration: 0.2,
+        ease: 'power2.in',
+        onComplete: () => {
+            noticeModal.style.display = 'none';
+            gsap.set(noticeModalCard, { clearProps: 'all' });
+        }
+    });
+}
+
+async function submitRenameModal() {
+    if (!renameTargetId) return;
+
+    const item = scanHistory.find((entry) => entry.id === renameTargetId);
+    if (!item) {
+        closeRenameModal();
+        return;
+    }
+
+    let newName = (renameInput.value || '').trim();
+    if (!newName) {
+        showNoticeModal('Tên file không được để trống.', 'error');
+        renameInput.focus();
+        return;
+    }
+
+    // Keep display names clean: drop common image extensions if user types them.
+    newName = newName.replace(/\.(png|jpg|jpeg|webp|bmp|gif)$/i, '');
+    if (!newName) {
+        showNoticeModal('Tên file không hợp lệ. Vui lòng nhập lại.', 'error');
+        renameInput.focus();
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/history', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: renameTargetId, filename: newName })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Không thể đổi tên file.');
+        }
+
+        item.filename = data.filename || newName;
+        if (selectedHistoryId === renameTargetId) {
+            selectedFilename = item.filename;
+        }
+        closeRenameModal();
+        renderHistory();
+    } catch (err) {
+        showNoticeModal(err.message || 'Không thể đổi tên file lúc này.', 'error');
+    }
+}
+
+renameSaveBtn.addEventListener('click', submitRenameModal);
+renameCancelBtn.addEventListener('click', closeRenameModal);
+renameInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        submitRenameModal();
+    }
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeRenameModal();
+    }
+});
+renameModal.addEventListener('click', (event) => {
+    if (event.target.id === 'renameModal') {
+        closeRenameModal();
+    }
+});
+noticeOkBtn.addEventListener('click', closeNoticeModal);
+noticeModal.addEventListener('click', (event) => {
+    if (event.target.id === 'noticeModal') {
+        closeNoticeModal();
+    }
+});
+
+function viewResultById(itemId) {
+    const item = scanHistory.find((entry) => entry.id === itemId);
+    if (!item) return;
+    selectedHistoryId = item.id;
+    selectedFilename = item.filename || '';
+    selectedCreatedAtLabel = [item.date, item.time].filter(Boolean).join(' ') || '';
+    refreshPrintHeaderMeta();
+    resultText.textContent = item.fullText || '';
+    result.classList.remove('hidden');
+    gsap.from(result, { y: 16, opacity: 0, duration: 0.35 });
+    result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+window.viewResultById = viewResultById;
+
+async function loadHistory() {
+    const response = await fetch('/api/history');
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+        historyGrid.innerHTML = `<div class="text-center text-red-500 col-span-full py-8">Không tải được lịch sử.</div>`;
+        return;
+    }
+
+    scanHistory = (data.data || []).map((item) => {
+        const dt = parseHistoryDate(item.createdAt);
+        return {
+            id: item.id,
+            filename: item.filename,
+            text: (item.text || '').replace(/\n/g, ' '),
+            fullText: item.fullText || '',
+            createdAtRaw: item.createdAt || '',
+            date: dt.date,
+            dateSearch: dt.dateSearch || dt.date,
+            time: dt.time
+        };
+    });
+    renderHistory();
+
+    const openId = Number(new URLSearchParams(window.location.search).get('open'));
+    if (openId) {
+        const found = scanHistory.find((h) => h.id === openId);
+        if (found) viewResultById(openId);
+    }
+}
+
+async function refreshCurrentUserProfile() {
+    try {
+        const response = await fetch('/api/profile');
+        const data = await response.json();
+        if (!response.ok || !data.success || !data.data) return;
+        currentUserFullname = data.data.fullname || '';
+        currentUserPhone = data.data.phone || '';
+    } catch (err) {
+        // Keep existing fallback values.
+    }
+}
+
+historySearchInput.addEventListener('input', (e) => {
+    historySearchTerm = e.target.value || '';
+    renderHistory();
+});
+historyDateFromInput.addEventListener('input', (e) => {
+    historyDateFrom = e.target.value || '';
+    renderHistory();
+});
+historyDateToInput.addEventListener('input', (e) => {
+    historyDateTo = e.target.value || '';
+    renderHistory();
+});
+historyFilterClearBtn.addEventListener('click', () => {
+    historySearchTerm = '';
+    historyDateFrom = '';
+    historyDateTo = '';
+    historySearchInput.value = '';
+    historyDateFromInput.value = '';
+    historyDateToInput.value = '';
+    renderHistory();
+});
+
+clearHistoryBtn.addEventListener('click', async () => {
+    await fetch('/api/history', { method: 'DELETE' });
+    await loadHistory();
+    result.classList.add('hidden');
+    resultText.textContent = '';
+    selectedHistoryId = null;
+    selectedFilename = '';
+});
+
+savePdfBtn.addEventListener('click', async () => {
+    const content = (resultText.textContent || '').trim();
+    if (!content) return;
+
+    await refreshCurrentUserProfile();
+
+    if (window.pdfMake && window.pdfMake.createPdf) {
+                                const pdfAiIconSvg = `
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="pillBgPdf" x1="10" y1="8" x2="54" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#60a5fa"/>
+            <stop offset="100%" stop-color="#1d4ed8"/>
+        </linearGradient>
+        <linearGradient id="pillTopPdf" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#ffe066"/>
+            <stop offset="100%" stop-color="#d97706"/>
+        </linearGradient>
+        <linearGradient id="pillBottomPdf" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#b91c1c"/>
+            <stop offset="100%" stop-color="#6b0000"/>
+        </linearGradient>
+    </defs>
+    <circle cx="32" cy="32" r="30" fill="url(#pillBgPdf)"/>
+    <ellipse cx="24" cy="18" rx="8.5" ry="4.8" fill="rgba(255,255,255,0.16)" transform="rotate(-30 24 18)"/>
+    <g transform="translate(32,32) rotate(-38)">
+        <path d="M -8,0 L -8,-11 A 8,8 0 0,0 8,-11 L 8,0 Z" fill="url(#pillTopPdf)"/>
+        <path d="M 8,0 L 8,11 A 8,8 0 0,1 -8,11 L -8,0 Z" fill="url(#pillBottomPdf)"/>
+        <line x1="-8" y1="0" x2="8" y2="0" stroke="rgba(255,255,255,0.75)" stroke-width="1.3"/>
+        <path d="M -8,0 L -8,-11 A 8,8 0 0,0 8,-11 L 8,11 A 8,8 0 0,1 -8,11 Z" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+        <ellipse cx="-2" cy="-9" rx="2.5" ry="3.4" fill="rgba(255,255,255,0.40)" transform="rotate(-10 -2 -9)"/>
+    </g>
+</svg>`;
+
+        const rawLines = content
+            .split('\n')
+            .flatMap((line) => splitByMedicalFields(normalizeOcrLine(line)))
+            .filter((line) => line.length > 0);
+
+        const medicineRows = [];
+        const patientInfoRows = [];
+        const diagnosisRows = [];
+        let lastMedicineIndex = -1;
+
+        for (const line of rawLines) {
+            const medicine = tryParseMedicineRow(line);
+            if (medicine) {
+                medicineRows.push({ stt: medicine.stt || '', name: medicine.name || '', dosage: medicine.inlineDosage || '', quantity: medicine.quantity || '' });
+                lastMedicineIndex = medicineRows.length - 1;
+                continue;
+            }
+
+            if (lastMedicineIndex >= 0) {
+                const cleanDoseLine = line.replace(/^[-•*]\s*/, '').trim();
+                if (/^(Sáng|Sang|Trưa|Trua|Chiều|Chieu|Tối|Toi|Uống|Uong|Thoa|Bôi|Boi|Ngày|Ngay)\b/i.test(cleanDoseLine)) {
+                    const currentDosage = medicineRows[lastMedicineIndex].dosage;
+                    medicineRows[lastMedicineIndex].dosage = currentDosage ? `${currentDosage}; ${cleanDoseLine}` : cleanDoseLine;
+                    continue;
+                }
+            }
+
+            if (/^(Chẩn đoán|Chuẩn đoán|Điều trị)\s*:/i.test(line)) {
+                diagnosisRows.push(line);
+                continue;
+            }
+
+            if (!/^(ĐƠN THUỐC|DON THUOC|Danh mục thuốc|STT)/i.test(line) &&
+                !/^[-•*]\s*(Sáng|Trưa|Chiều|Tối|Uống|Thoa|Bôi|Ngày)\b/i.test(line)) {
+                patientInfoRows.push(line);
+            }
+        }
+
+        const infoBody = buildCompactInfoBody(patientInfoRows);
+
+        const diagnosisBody = diagnosisRows.length > 0
+            ? diagnosisRows.map((line, index) => ([{ text: line, fontSize: 10.5, color: '#1e293b', margin: [8, 6, 8, 6], fillColor: index % 2 === 0 ? '#ffffff' : '#f8fafc' }]))
+            : [[{ text: 'Không có thông tin chẩn đoán/điều trị rõ ràng.', fontSize: 10, color: '#64748b', margin: [8, 8, 8, 8], fillColor: '#ffffff' }]];
+
+        const medicineBody = [[
+            { text: 'STT', bold: true, fontSize: 10.5, color: '#0f172a', alignment: 'center', fillColor: '#cffafe', margin: [0, 7, 0, 7] },
+            { text: 'Tên thuốc', bold: true, fontSize: 10.5, color: '#0f172a', alignment: 'center', fillColor: '#cffafe', margin: [0, 7, 0, 7] },
+            { text: 'Liều dùng', bold: true, fontSize: 10.5, color: '#0f172a', alignment: 'center', fillColor: '#cffafe', margin: [0, 7, 0, 7] },
+            { text: 'Số lượng', bold: true, fontSize: 10.5, color: '#0f172a', alignment: 'center', fillColor: '#cffafe', margin: [0, 7, 0, 7] }
+        ]];
+
+        if (medicineRows.length > 0) {
+            medicineRows.forEach((item, index) => {
+                const rowFill = index % 2 === 0 ? '#ffffff' : '#f8fafc';
+                medicineBody.push([
+                    { text: item.stt || '-', fontSize: 10.5, alignment: 'center', margin: [4, 6, 4, 6], fillColor: rowFill },
+                    { text: item.name || '-', fontSize: 10.5, margin: [6, 6, 6, 6], fillColor: rowFill },
+                    { text: item.dosage || '-', fontSize: 10.5, margin: [6, 6, 6, 6], fillColor: rowFill },
+                    { text: item.quantity || '-', fontSize: 10.5, alignment: 'center', margin: [4, 6, 4, 6], fillColor: rowFill }
+                ]);
+            });
+        } else {
+            medicineBody.push([
+                { text: '-', fontSize: 10.5, alignment: 'center', margin: [4, 8, 4, 8], fillColor: '#ffffff' },
+                { text: 'Không tách được tên thuốc từ OCR', fontSize: 10.5, margin: [6, 8, 6, 8], colSpan: 2, fillColor: '#ffffff' },
+                {},
+                { text: '-', fontSize: 10.5, alignment: 'center', margin: [4, 8, 4, 8], fillColor: '#ffffff' }
+            ]);
+        }
+
+        const docDefinition = {
+            pageSize: 'A4',
+            pageMargins: [36, 36, 36, 36],
+            header: (currentPage) => ({
+                margin: [36, 18, 36, 0],
+                columns: [
+                    { text: 'OCR Thuốc - Kết quả đơn thuốc', fontSize: 10, color: '#0f766e', bold: true },
+                    { text: `Trang ${currentPage}`, fontSize: 9, color: '#64748b', alignment: 'right' }
+                ]
+            }),
+            footer: (currentPage, pageCount) => ({
+                margin: [36, 0, 36, 16],
+                columns: [
+                    { text: 'Tài liệu được tạo từ hệ thống OCR Thuốc', fontSize: 8, color: '#64748b' },
+                    { text: `${currentPage}/${pageCount}`, fontSize: 8, color: '#64748b', alignment: 'right' }
+                ]
+            }),
+            content: [
+                {
+                    columns: [
+                        { svg: pdfAiIconSvg, width: 52, margin: [0, 0, 10, 0] },
+                        {
+                            stack: [
+                                { text: 'BẢN IN ĐƠN THUỐC TỪ TRỢ LÝ Y TẾ AI', fontSize: 15, bold: true, color: '#0f172a' },
+                                { text: `Tệp: ${selectedFilename || 'Không xác định'} · Thời gian quét: ${selectedCreatedAtLabel || new Date().toLocaleString('vi-VN')}`, fontSize: 10, color: '#475569', margin: [0, 4, 0, 0] }
+                            ]
+                        }
+                    ],
+                    margin: [0, 0, 0, 10]
+                },
+                {
+                    table: {
+                        widths: ['*'],
+                        body: [[{
+                            text: 'KẾT QUẢ NHẬN DẠNG ĐƠN THUỐC',
+                            fontSize: 16,
+                            bold: true,
+                            alignment: 'center',
+                            color: '#0f172a',
+                            margin: [0, 10, 0, 10],
+                            fillColor: '#e6fffb'
+                        }]]
+                    },
+                    layout: { hLineWidth: () => 1, vLineWidth: () => 1, hLineColor: () => '#99f6e4', vLineColor: () => '#99f6e4' },
+                    margin: [0, 8, 0, 10]
+                },
+                {
+                    table: {
+                        widths: ['*', '*'],
+                        body: [
+                            [
+                                { text: `Ngày tạo: ${new Date().toLocaleString('vi-VN')}`, fontSize: 10, color: '#334155', margin: [8, 8, 8, 8], fillColor: '#f8fafc' },
+                                { text: `Tệp ảnh: ${selectedFilename || 'Không xác định'}`, fontSize: 10, color: '#334155', alignment: 'right', margin: [8, 8, 8, 8], fillColor: '#f8fafc' }
+                            ],
+                            [
+                                { text: `Người xuất đơn: ${currentUserFullname || 'Không xác định'}`, fontSize: 10, color: '#334155', margin: [8, 8, 8, 8], fillColor: '#f8fafc' },
+                                { text: `Số điện thoại: ${currentUserPhone || 'Chưa cập nhật'}`, fontSize: 10, color: '#334155', alignment: 'right', margin: [8, 8, 8, 8], fillColor: '#f8fafc' }
+                            ]
+                        ]
+                    },
+                    layout: { hLineWidth: () => 1, vLineWidth: () => 1, hLineColor: () => '#cbd5e1', vLineColor: () => '#cbd5e1' },
+                    margin: [0, 0, 0, 10]
+                },
+                {
+                    table: { widths: ['*'], body: [[{ text: 'THÔNG TIN NHẬN DẠNG', fontSize: 12, bold: true, color: '#0f172a', alignment: 'left', margin: [8, 7, 8, 7], fillColor: '#ecfeff' }]] },
+                    layout: { hLineWidth: () => 1, vLineWidth: () => 1, hLineColor: () => '#99f6e4', vLineColor: () => '#99f6e4' },
+                    margin: [0, 0, 0, 0]
+                },
+                {
+                    table: { widths: ['*', '*'], body: infoBody },
+                    layout: { hLineWidth: () => 0.8, vLineWidth: () => 0.8, hLineColor: () => '#cbd5e1', vLineColor: () => '#cbd5e1' },
+                    margin: [0, 0, 0, 10]
+                },
+                {
+                    table: { widths: ['*'], body: [[{ text: 'CHẨN ĐOÁN VÀ ĐIỀU TRỊ', fontSize: 12, bold: true, color: '#0f172a', alignment: 'left', margin: [8, 7, 8, 7], fillColor: '#ecfeff' }]] },
+                    layout: { hLineWidth: () => 1, vLineWidth: () => 1, hLineColor: () => '#99f6e4', vLineColor: () => '#99f6e4' },
+                    margin: [0, 0, 0, 0]
+                },
+                {
+                    table: { widths: ['*'], body: diagnosisBody },
+                    layout: { hLineWidth: () => 0.8, vLineWidth: () => 0.8, hLineColor: () => '#cbd5e1', vLineColor: () => '#cbd5e1' },
+                    margin: [0, 0, 0, 10]
+                },
+                {
+                    table: { widths: ['*'], body: [[{ text: 'DANH MỤC THUỐC', fontSize: 12, bold: true, color: '#0f172a', alignment: 'left', margin: [8, 7, 8, 7], fillColor: '#ecfeff' }]] },
+                    layout: { hLineWidth: () => 1, vLineWidth: () => 1, hLineColor: () => '#99f6e4', vLineColor: () => '#99f6e4' },
+                    margin: [0, 0, 0, 0]
+                },
+                {
+                    table: { headerRows: 1, widths: [42, '*', 140, 70], body: medicineBody },
+                    layout: { hLineWidth: () => 0.8, vLineWidth: () => 0.8, hLineColor: () => '#cbd5e1', vLineColor: () => '#cbd5e1' }
+                }
+            ],
+            defaultStyle: { font: 'Roboto' }
+        };
+        const ts = new Date();
+        const stamp = `${ts.getFullYear()}${String(ts.getMonth() + 1).padStart(2, '0')}${String(ts.getDate()).padStart(2, '0')}_${String(ts.getHours()).padStart(2, '0')}${String(ts.getMinutes()).padStart(2, '0')}`;
+        window.pdfMake.createPdf(docDefinition).download(`don-thuoc-${stamp}.pdf`);
+        return;
+    }
+
+    refreshPrintHeaderMeta();
+    window.print();
+});
+
+sendEmailBtn.addEventListener('click', async () => {
+    if (!selectedHistoryId) {
+        showNoticeModal('Vui lòng chọn đơn thuốc trước khi gửi email.', 'error');
+        return;
+    }
+
+    const content = (resultText.textContent || '').trim();
+    if (!content) {
+        showNoticeModal('Nội dung đơn thuốc trống, không thể gửi email.', 'error');
+        return;
+    }
+
+    const originalHtml = sendEmailBtn.innerHTML;
+    sendEmailBtn.disabled = true;
+    sendEmailBtn.classList.add('opacity-60', 'cursor-not-allowed');
+    sendEmailBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Đang gửi...';
+    lucide.createIcons();
+
+    try {
+        const response = await fetch('/api/history/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: selectedHistoryId })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Gửi email thất bại.');
+        }
+        showNoticeModal(data.message || 'Đã gửi bản in đơn thuốc về email của bạn.', 'success');
+    } catch (err) {
+        showNoticeModal(err.message || 'Không thể gửi email lúc này. Vui lòng thử lại sau.', 'error');
+    } finally {
+        sendEmailBtn.disabled = false;
+        sendEmailBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+        sendEmailBtn.innerHTML = originalHtml;
+        lucide.createIcons();
+    }
+});
+
+deleteResultBtn.addEventListener('click', async () => {
+    if (!selectedHistoryId) return;
+    const accepted = confirm('Bạn có chắc chắn muốn xóa đơn thuốc này?');
+    if (!accepted) return;
+
+    const response = await fetch('/api/history', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedHistoryId })
+    });
+
+    if (!response.ok) return;
+
+    await loadHistory();
+    result.classList.add('hidden');
+    resultText.textContent = '';
+    selectedHistoryId = null;
+    selectedFilename = '';
+});
+
+loadHistory();
+refreshCurrentUserProfile();
+initHistoryDatePickers();
+</script>
+</script>
+</body>
+</html>

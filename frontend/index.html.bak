@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html class="light" lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>OCR Thuốc - Nhận dạng đơn thuốc thông minh</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { DEFAULT: "#0ea5a4", 50: "#effefa", 100: "#c8fff9", 200: "#91fff4", 300: "#53f5ea", 400: "#1eddd3", 500: "#0ea5a4", 600: "#068585", 700: "#096a6b", 800: "#0c5456", 900: "#0f4547" },
+                        secondary: { DEFAULT: "#3b82f6", 50: "#eff6ff", 500: "#3b82f6", 600: "#2563eb" },
+                        accent: { DEFAULT: "#22c55e", 50: "#f0fdf4", 500: "#22c55e" },
+                        dark: { DEFAULT: "#0f172a", 50: "#f8fafc", 100: "#f1f5f9", 200: "#e2e8f0", 700: "#334155", 800: "#1e293b", 900: "#0f172a" }
+                    },
+                    fontFamily: { display: ["Poppins", "Inter", "sans-serif"], body: ["Inter", "sans-serif"] },
+                    borderRadius: { "2xl": "18px", "3xl": "24px" },
+                },
+            },
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        h1,h2,h3,.font-display { font-family: 'Poppins', sans-serif; }
+
+        /* Neural Network Canvas */
+        #neuralCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+
+        /* Mouse Light Effect */
+        .mouse-light { position: fixed; width: 600px; height: 600px; border-radius: 50%; pointer-events: none; z-index: 1;
+            background: radial-gradient(circle, rgba(14,165,164,0.08) 0%, transparent 70%);
+            transform: translate(-50%, -50%); transition: opacity 0.3s; }
+        .dark .mouse-light { background: radial-gradient(circle, rgba(14,165,164,0.12) 0%, transparent 70%); }
+
+        /* Glass Card */
+        .glass { background: rgba(255,255,255,0.6); backdrop-filter: blur(20px) saturate(180%); border: 1px solid rgba(255,255,255,0.3); }
+        .dark .glass { background: rgba(30,41,59,0.6); border-color: rgba(255,255,255,0.08); }
+
+        /* Sidebar */
+        .sidebar { transition: width 0.4s cubic-bezier(0.4,0,0.2,1); }
+        .sidebar.collapsed { width: 80px; }
+        .sidebar.collapsed .sidebar-text { display: none; }
+        .sidebar.collapsed .sidebar-logo-text { display: none; }
+        .sidebar-link { transition: all 0.3s ease; position: relative; overflow: hidden; }
+        .sidebar-link::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 0; background: #0ea5a4; border-radius: 0 4px 4px 0; transition: height 0.3s ease; }
+        .sidebar-link:hover::before, .sidebar-link.active::before { height: 60%; }
+        .sidebar-link:hover, .sidebar-link.active { background: rgba(14,165,164,0.08); }
+        .sidebar-link:hover svg, .sidebar-link.active svg { filter: drop-shadow(0 0 6px rgba(14,165,164,0.5)); color: #0ea5a4; }
+
+        /* Glow Effects */
+        .glow-teal { box-shadow: 0 0 30px rgba(14,165,164,0.15), 0 0 60px rgba(14,165,164,0.05); }
+        .dark .glow-teal { box-shadow: 0 0 30px rgba(14,165,164,0.25), 0 0 60px rgba(14,165,164,0.1); }
+        .glow-hover:hover { box-shadow: 0 8px 40px rgba(14,165,164,0.2), 0 0 60px rgba(14,165,164,0.08); transform: translateY(-4px); }
+
+        /* Upload Zone */
+        .upload-zone { transition: all 0.4s cubic-bezier(0.4,0,0.2,1); }
+        .upload-zone:hover { border-color: #0ea5a4; background: rgba(14,165,164,0.06); }
+        .upload-zone.dragover { border-color: #22c55e; background: rgba(34,197,94,0.06); transform: scale(1.01); }
+        .upload-zone:hover .upload-icon { animation: pulse-glow 2s ease-in-out infinite; }
+        @keyframes pulse-glow {
+            0%, 100% { filter: drop-shadow(0 0 8px rgba(14,165,164,0.3)); transform: scale(1); }
+            50% { filter: drop-shadow(0 0 20px rgba(14,165,164,0.6)); transform: scale(1.08); }
+        }
+
+        /* Scanner Animation */
+        @keyframes scan-line { 0% { top: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+        .scan-line { position: absolute; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, #0ea5a4, transparent);
+            box-shadow: 0 0 15px rgba(14,165,164,0.6); animation: scan-line 2.5s ease-in-out infinite; }
+
+        /* Stat Cards */
+        .stat-card { transition: all 0.4s cubic-bezier(0.4,0,0.2,1); }
+        .stat-card:hover { transform: translateY(-6px); }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        .float-anim { animation: float 6s ease-in-out infinite; }
+        .float-anim-delay { animation: float 6s ease-in-out 1.5s infinite; }
+        .float-anim-delay2 { animation: float 6s ease-in-out 3s infinite; }
+
+        /* Button */
+        .btn-primary { transition: all 0.3s cubic-bezier(0.4,0,0.2,1); position: relative; overflow: hidden; }
+        .btn-primary:hover { transform: scale(1.05); box-shadow: 0 10px 40px rgba(14,165,164,0.3); }
+        .btn-primary::after { content: ''; position: absolute; inset: 0; background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%);
+            transform: translateX(-100%); transition: transform 0.6s; }
+        .btn-primary:hover::after { transform: translateX(100%); }
+
+        /* Icon Bounce */
+        .icon-bounce:hover svg { animation: bounce-subtle 0.5s ease; }
+        @keyframes bounce-subtle { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-4px); } 60% { transform: translateY(-2px); } }
+
+        /* Dark Mode Transition */
+        * { transition: background-color 0.4s ease, border-color 0.4s ease, color 0.3s ease; }
+
+        /* Spinner */
+        .loading-spinner { width: 24px; height: 24px; border: 3px solid rgba(255,255,255,0.3); border-top-color: white;
+            border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(14,165,164,0.2); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(14,165,164,0.4); }
+
+        /* History card hover */
+        .history-card { transition: all 0.4s cubic-bezier(0.4,0,0.2,1); }
+        .history-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(14,165,164,0.12); }
+    </style>
+</head>
+
+<body class="bg-gradient-to-br from-slate-50 via-white to-teal-50/30 dark:from-dark-900 dark:via-dark-900 dark:to-slate-900 text-slate-900 dark:text-dark-200 font-body min-h-screen">
+
+<!-- Neural Network Background Canvas -->
+<canvas id="neuralCanvas"></canvas>
+
+<!-- Mouse Light Effect -->
+<div id="mouseLight" class="mouse-light" style="opacity:0;"></div>
+
+<!-- Layout Wrapper -->
+<div class="relative z-10 flex min-h-screen">
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar w-[260px] fixed top-0 left-0 h-full z-50 flex flex-col border-r border-primary/10 glass">
+        <!-- Logo -->
+        <div class="flex items-center gap-3 px-6 py-6 border-b border-primary/10">
+            <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0">
+                <i data-lucide="pill" class="w-5 h-5 text-white"></i>
+            </div>
+            <span class="sidebar-logo-text font-display font-extrabold text-lg bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">OCR Thuốc</span>
+            <button id="collapseBtn" class="ml-auto p-1.5 rounded-lg hover:bg-primary/10 transition-colors sidebar-text">
+                <i data-lucide="panel-left-close" class="w-4 h-4 text-slate-400"></i>
+            </button>
+        </div>
+
+        <!-- Nav Links -->
+        <nav class="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
+            <a href="#" class="sidebar-link active flex items-center gap-3 px-4 py-3 rounded-xl text-primary font-semibold icon-bounce">
+                <i data-lucide="layout-dashboard" class="w-5 h-5 flex-shrink-0"></i>
+                <span class="sidebar-text text-sm">Trang chủ</span>
+            </a>
+            <a href="#uploadSection" onclick="document.getElementById('fileInput').click();" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:text-primary font-medium icon-bounce">
+                <i data-lucide="scan-line" class="w-5 h-5 flex-shrink-0"></i>
+                <span class="sidebar-text text-sm">Quét đơn thuốc</span>
+            </a>
+            <a href="#historySection" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:text-primary font-medium icon-bounce">
+                <i data-lucide="history" class="w-5 h-5 flex-shrink-0"></i>
+                <span class="sidebar-text text-sm">Lịch sử</span>
+            </a>
+            <a href="#statsSection" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:text-primary font-medium icon-bounce">
+                <i data-lucide="bar-chart-3" class="w-5 h-5 flex-shrink-0"></i>
+                <span class="sidebar-text text-sm">Thống kê</span>
+            </a>
+            <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:text-primary font-medium icon-bounce">
+                <i data-lucide="settings" class="w-5 h-5 flex-shrink-0"></i>
+                <span class="sidebar-text text-sm">Cài đặt</span>
+            </a>
+        </nav>
+
+        <!-- Sidebar Footer -->
+        <div class="px-3 py-4 border-t border-primary/10">
+            <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-primary font-medium icon-bounce">
+                <i data-lucide="life-buoy" class="w-5 h-5 flex-shrink-0"></i>
+                <span class="sidebar-text text-sm">Trợ giúp</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Area -->
+    <div id="mainArea" class="flex-1 ml-[260px] transition-all duration-400 flex flex-col min-h-screen">
+
+        <!-- Header -->
+        <header class="sticky top-0 z-40 glass border-b border-primary/10 px-8 py-4">
+            <div class="flex items-center justify-between">
+                <!-- Search -->
+                <div class="relative max-w-md w-full">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" placeholder="Tìm kiếm đơn thuốc..." class="w-full pl-11 pr-4 py-2.5 rounded-xl bg-slate-100/80 dark:bg-dark-800/80 border border-transparent focus:border-primary/30 focus:ring-2 focus:ring-primary/10 text-sm outline-none transition-all placeholder:text-slate-400"/>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <!-- Dark Mode Toggle -->
+                    <button id="themeToggle" class="p-2.5 rounded-xl bg-slate-100/80 dark:bg-dark-800/80 hover:bg-primary/10 transition-all icon-bounce" title="Đổi giao diện">
+                        <i data-lucide="sun" class="w-5 h-5 text-amber-500 dark:hidden"></i>
+                        <i data-lucide="moon" class="w-5 h-5 text-blue-400 hidden dark:block"></i>
+                    </button>
+
+                    <!-- Notifications -->
+                    <button class="p-2.5 rounded-xl bg-slate-100/80 dark:bg-dark-800/80 hover:bg-primary/10 transition-all relative icon-bounce">
+                        <i data-lucide="bell" class="w-5 h-5 text-slate-500 dark:text-slate-400"></i>
+                        <span class="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-dark-800 animate-pulse"></span>
+                    </button>
+
+                    <!-- User -->
+                    <div class="flex items-center gap-3 pl-3 ml-1 border-l border-slate-200 dark:border-dark-700">
+                        <div class="text-right hidden sm:block">
+                            <p class="text-sm font-bold leading-none">Nguyễn Văn Khỏe
+                
+                            </p>
+                            <p class="text-xs text-slate-500 mt-0.5">Bác sĩ chuyên khoa</p>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-primary/20">
+                            HK
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <main class="flex-1 px-8 py-8 overflow-y-auto">
+
+            <!-- Hero Section -->
+            <section class="grid grid-cols-1 lg:grid-cols-5 gap-8 mb-10">
+                <!-- Left: Info -->
+                <div class="lg:col-span-3 flex flex-col justify-center space-y-6">
+                    <div>
+                        <p class="text-primary font-semibold text-sm tracking-widest uppercase mb-3 flex items-center gap-2">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i> AI-Powered OCR System
+                        </p>
+                        <h2 class="font-display text-4xl xl:text-5xl font-black leading-[1.1] tracking-tight">
+                            Nhận dạng đơn thuốc<br/>
+                            <span class="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">bằng AI</span>
+                        </h2>
+                    </div>
+                    <p class="text-slate-500 dark:text-slate-400 text-lg max-w-xl leading-relaxed">
+                        Hệ thống OCR thông minh giúp số hóa đơn thuốc nhanh chóng và chính xác. Tối ưu hóa quy trình quản lý dược phẩm.
+                    </p>
+                    <div class="flex flex-wrap gap-4">
+                        <a href="#uploadSection" onclick="document.getElementById('fileInput').click();" class="btn-primary inline-flex items-center gap-3 bg-gradient-to-r from-primary to-primary-600 text-white px-8 py-4 rounded-2xl font-bold text-base shadow-xl shadow-primary/25">
+                            <i data-lucide="scan-line" class="w-5 h-5"></i>
+                            Quét đơn thuốc mới
+                        </a>
+                        <a href="#historySection" class="inline-flex items-center gap-3 bg-white/80 dark:bg-dark-800/80 backdrop-blur border border-slate-200 dark:border-dark-700 text-slate-700 dark:text-slate-300 px-8 py-4 rounded-2xl font-bold text-base hover:border-primary/40 hover:text-primary transition-all hover:scale-105">
+                            <i data-lucide="history" class="w-5 h-5"></i>
+                            Xem lịch sử
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Right: AI Visual -->
+                <div class="lg:col-span-2 flex items-center justify-center">
+                    <div class="relative float-anim">
+                        <div class="absolute -inset-4 bg-gradient-to-r from-primary/20 via-secondary/20 to-accent/20 rounded-3xl blur-2xl"></div>
+                        <div class="relative glass rounded-3xl p-8 glow-teal">
+                            <div class="flex flex-col items-center text-center space-y-4">
+                                <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/30">
+                                    <i data-lucide="brain-circuit" class="w-10 h-10 text-white"></i>
+                                </div>
+                                <h3 class="font-display font-bold text-xl">AI Engine</h3>
+                                <p class="text-sm text-slate-500 dark:text-slate-400">Tesseract LSTM + Tiền xử lý nâng cao</p>
+                                <div class="flex items-center gap-2 mt-2">
+                                    <span class="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
+                                    <span class="text-xs font-medium text-accent">Đang hoạt động</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Stats Cards -->
+            <section id="statsSection" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
+                <div class="stat-card glass rounded-2xl p-5 glow-hover float-anim cursor-default">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center">
+                            <i data-lucide="file-scan" class="w-5 h-5 text-primary"></i>
+                        </div>
+                        <span class="text-xs font-semibold text-accent bg-accent/10 px-2.5 py-1 rounded-full flex items-center gap-1">
+                            <i data-lucide="trending-up" class="w-3 h-3"></i> +12%
+                        </span>
+                    </div>
+                    <p class="text-2xl font-display font-extrabold" id="statScanned">0</p>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Đơn thuốc đã quét</p>
+                </div>
+
+                <div class="stat-card glass rounded-2xl p-5 glow-hover float-anim-delay cursor-default">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-11 h-11 rounded-xl bg-secondary/10 flex items-center justify-center">
+                            <i data-lucide="target" class="w-5 h-5 text-secondary"></i>
+                        </div>
+                        <span class="text-xs font-semibold text-secondary bg-secondary/10 px-2.5 py-1 rounded-full">Tốt</span>
+                    </div>
+                    <p class="text-2xl font-display font-extrabold">94.2%</p>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Độ chính xác OCR</p>
+                </div>
+
+                <div class="stat-card glass rounded-2xl p-5 glow-hover float-anim-delay2 cursor-default">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-11 h-11 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                            <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500"></i>
+                        </div>
+                        <span class="text-xs font-semibold text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded-full">Thấp</span>
+                    </div>
+                    <p class="text-2xl font-display font-extrabold" id="statErrors">0</p>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Lỗi nhận dạng</p>
+                </div>
+
+                <div class="stat-card glass rounded-2xl p-5 glow-hover float-anim cursor-default">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-11 h-11 rounded-xl bg-accent/10 flex items-center justify-center">
+                            <i data-lucide="activity" class="w-5 h-5 text-accent"></i>
+                        </div>
+                        <span class="text-xs font-semibold text-accent bg-accent/10 px-2.5 py-1 rounded-full flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span> Live
+                        </span>
+                    </div>
+                    <p class="text-2xl font-display font-extrabold" id="statToday">0</p>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Hoạt động hôm nay</p>
+                </div>
+            </section>
+
+            <!-- Upload / Scan Area -->
+            <section id="uploadSection" class="mb-10">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <i data-lucide="upload-cloud" class="w-4 h-4 text-primary"></i>
+                    </div>
+                    <h3 class="font-display text-xl font-bold">Quét đơn thuốc</h3>
+                </div>
+
+                <input type="file" id="fileInput" accept="image/*" class="hidden"/>
+
+                <div id="uploadArea" class="upload-zone relative glass rounded-3xl border-2 border-dashed border-primary/25 p-12 flex flex-col items-center justify-center cursor-pointer min-h-[260px] group">
+                    <!-- Scanner animation overlay (hidden by default) -->
+                    <div id="scanOverlay" class="hidden absolute inset-0 rounded-3xl overflow-hidden z-10">
+                        <div class="scan-line"></div>
+                        <div class="absolute inset-0 bg-primary/5"></div>
+                    </div>
+
+                    <div class="upload-icon w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center mb-5 transition-transform">
+                        <i data-lucide="scan-line" class="w-10 h-10 text-primary"></i>
+                    </div>
+                    <h3 class="font-display text-xl font-bold mb-2">Tải lên đơn thuốc</h3>
+                    <p class="text-slate-500 dark:text-slate-400 text-center max-w-md">Kéo và thả ảnh đơn thuốc tại đây hoặc nhấp để chọn tệp từ thiết bị</p>
+                    <p class="text-xs text-slate-400 mt-3 flex items-center gap-2">
+                        <i data-lucide="image" class="w-3.5 h-3.5"></i>
+                        PNG, JPG, JPEG, BMP, TIFF
+                    </p>
+                </div>
+
+                <!-- Preview -->
+                <div id="previewContainer" class="hidden mt-6">
+                    <div class="glass rounded-3xl p-6 glow-teal">
+                        <div class="flex items-center justify-between mb-5">
+                            <h3 class="font-display font-bold text-lg flex items-center gap-2">
+                                <i data-lucide="image" class="w-5 h-5 text-primary"></i>
+                                Ảnh đã chọn
+                            </h3>
+                            <button id="clearBtn" class="text-sm text-red-500 hover:text-red-600 font-semibold flex items-center gap-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 px-3 py-1.5 rounded-lg transition-all">
+                                <i data-lucide="x" class="w-4 h-4"></i> Xóa
+                            </button>
+                        </div>
+                        <div class="relative rounded-2xl overflow-hidden bg-slate-100 dark:bg-dark-800">
+                            <img id="preview" class="max-w-full max-h-[320px] mx-auto block" alt="Preview"/>
+                        </div>
+                        <button id="submitBtn" disabled class="btn-primary mt-6 w-full flex items-center justify-center gap-3 bg-gradient-to-r from-primary to-primary-600 disabled:from-slate-300 disabled:to-slate-300 dark:disabled:from-dark-700 dark:disabled:to-dark-700 disabled:cursor-not-allowed text-white px-8 py-4 rounded-2xl font-bold text-lg shadow-xl shadow-primary/20 disabled:shadow-none">
+                            <i data-lucide="zap" class="w-5 h-5"></i>
+                            <span id="submitText">Nhận dạng văn bản</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Error -->
+                <div id="error" class="hidden mt-5 p-4 glass border border-red-200 dark:border-red-800/40 rounded-2xl text-red-600 dark:text-red-400 text-center font-semibold flex items-center justify-center gap-2">
+                    <i data-lucide="alert-circle" class="w-5 h-5 flex-shrink-0"></i>
+                    <span id="errorText"></span>
+                </div>
+
+                <!-- Result -->
+                <div id="result" class="hidden mt-6">
+                    <div class="glass rounded-3xl p-6 glow-teal">
+                        <div class="flex items-center justify-between mb-5">
+                            <h3 class="font-display font-bold text-lg flex items-center gap-2">
+                                <i data-lucide="file-text" class="w-5 h-5 text-primary"></i>
+                                Kết quả nhận dạng
+                            </h3>
+                            <button id="copyBtn" class="text-sm text-primary hover:bg-primary/10 font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all">
+                                <i data-lucide="copy" class="w-4 h-4"></i> Sao chép
+                            </button>
+                        </div>
+                        <pre id="resultText" class="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700 dark:text-slate-300 bg-slate-50/80 dark:bg-dark-900/80 p-6 rounded-2xl border border-slate-100 dark:border-dark-700 font-body"></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- History -->
+            <section id="historySection">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
+                            <i data-lucide="history" class="w-4 h-4 text-secondary"></i>
+                        </div>
+                        <h3 class="font-display text-xl font-bold">Đơn thuốc gần đây</h3>
+                    </div>
+                    <button id="clearHistoryBtn" class="hidden text-sm text-slate-400 hover:text-red-500 font-medium flex items-center gap-1.5 transition-colors">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i> Xóa lịch sử
+                    </button>
+                </div>
+                <div id="historyGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                    <div class="text-center text-slate-400 col-span-full py-16">
+                        <i data-lucide="inbox" class="w-14 h-14 mx-auto mb-3 opacity-40"></i>
+                        <p class="font-medium">Chưa có đơn thuốc nào được quét</p>
+                        <p class="text-sm mt-1">Bắt đầu bằng cách tải lên ảnh đơn thuốc</p>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+</div>
+
+<script>
+// ===================== INITIALIZE LUCIDE ICONS =====================
+lucide.createIcons();
+
+// ===================== NEURAL NETWORK BACKGROUND =====================
+const canvas = document.getElementById('neuralCanvas');
+const ctx = canvas.getContext('2d');
+let particles = [];
+let mouseX = 0, mouseY = 0;
+
+function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+class Particle {
+    constructor() { this.reset(); }
+    reset() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.vx = (Math.random() - 0.5) * 0.4;
+        this.vy = (Math.random() - 0.5) * 0.4;
+        this.radius = Math.random() * 2 + 0.5;
+        this.opacity = Math.random() * 0.4 + 0.1;
+    }
+    update() {
+        this.x += this.vx; this.y += this.vy;
+        if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+        if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+        // subtle mouse repel
+        const dx = this.x - mouseX, dy = this.y - mouseY;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < 120) { this.x += dx * 0.01; this.y += dy * 0.01; }
+    }
+    draw() {
+        const isDark = document.documentElement.classList.contains('dark');
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = isDark ? `rgba(14,165,164,${this.opacity})` : `rgba(14,165,164,${this.opacity * 0.6})`;
+        ctx.fill();
+    }
+}
+
+for (let i = 0; i < 80; i++) particles.push(new Particle());
+
+function drawConnections() {
+    const isDark = document.documentElement.classList.contains('dark');
+    for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+            const dx = particles[i].x - particles[j].x;
+            const dy = particles[i].y - particles[j].y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < 150) {
+                const alpha = (1 - dist / 150) * (isDark ? 0.12 : 0.06);
+                ctx.beginPath();
+                ctx.moveTo(particles[i].x, particles[i].y);
+                ctx.lineTo(particles[j].x, particles[j].y);
+                ctx.strokeStyle = `rgba(14,165,164,${alpha})`;
+                ctx.lineWidth = 0.5;
+                ctx.stroke();
+            }
+        }
+    }
+}
+
+function animateParticles() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => { p.update(); p.draw(); });
+    drawConnections();
+    requestAnimationFrame(animateParticles);
+}
+animateParticles();
+
+// ===================== MOUSE LIGHT EFFECT =====================
+const mouseLight = document.getElementById('mouseLight');
+document.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX; mouseY = e.clientY;
+    mouseLight.style.left = e.clientX + 'px';
+    mouseLight.style.top = e.clientY + 'px';
+    mouseLight.style.opacity = '1';
+});
+document.addEventListener('mouseleave', () => { mouseLight.style.opacity = '0'; });
+
+// ===================== DARK MODE TOGGLE =====================
+const themeToggle = document.getElementById('themeToggle');
+const savedTheme = localStorage.getItem('theme');
+if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    document.documentElement.classList.add('dark');
+}
+themeToggle.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    lucide.createIcons();
+});
+
+// ===================== SIDEBAR COLLAPSE =====================
+const sidebar = document.getElementById('sidebar');
+const mainArea = document.getElementById('mainArea');
+const collapseBtn = document.getElementById('collapseBtn');
+let sidebarCollapsed = false;
+collapseBtn.addEventListener('click', () => {
+    sidebarCollapsed = !sidebarCollapsed;
+    sidebar.classList.toggle('collapsed');
+    mainArea.style.marginLeft = sidebarCollapsed ? '80px' : '260px';
+});
+
+// ===================== GSAP ENTRANCE ANIMATIONS =====================
+gsap.from('.stat-card', { y: 40, opacity: 0, duration: 0.8, stagger: 0.15, ease: 'power3.out', delay: 0.3 });
+gsap.from('.upload-zone', { y: 30, opacity: 0, duration: 0.8, ease: 'power3.out', delay: 0.7 });
+
+// ===================== OCR FUNCTIONALITY =====================
+const uploadArea = document.getElementById('uploadArea');
+const fileInput = document.getElementById('fileInput');
+const preview = document.getElementById('preview');
+const previewContainer = document.getElementById('previewContainer');
+const submitBtn = document.getElementById('submitBtn');
+const submitText = document.getElementById('submitText');
+const error = document.getElementById('error');
+const errorText = document.getElementById('errorText');
+const result = document.getElementById('result');
+const resultText = document.getElementById('resultText');
+const clearBtn = document.getElementById('clearBtn');
+const copyBtn = document.getElementById('copyBtn');
+const historyGrid = document.getElementById('historyGrid');
+const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+const scanOverlay = document.getElementById('scanOverlay');
+
+let selectedFile = null;
+let scanHistory = JSON.parse(localStorage.getItem('scanHistory') || '[]');
+updateStats();
+renderHistory();
+
+uploadArea.addEventListener('click', () => fileInput.click());
+uploadArea.addEventListener('dragenter', (e) => { e.preventDefault(); });
+uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault(); uploadArea.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files.length > 0) handleFile(fileInput.files[0]); });
+
+function handleFile(file) {
+    selectedFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        preview.src = e.target.result;
+        previewContainer.classList.remove('hidden');
+        gsap.from(previewContainer, { y: 20, opacity: 0, duration: 0.5, ease: 'power3.out' });
+    };
+    reader.readAsDataURL(file);
+    submitBtn.disabled = false;
+    error.classList.add('hidden');
+    result.classList.add('hidden');
+}
+
+clearBtn.addEventListener('click', () => {
+    selectedFile = null; fileInput.value = '';
+    previewContainer.classList.add('hidden');
+    result.classList.add('hidden');
+    error.classList.add('hidden');
+    submitBtn.disabled = true;
+});
+
+copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(resultText.textContent);
+    copyBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> Đã chép';
+    lucide.createIcons();
+    setTimeout(() => { copyBtn.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i> Sao chép'; lucide.createIcons(); }, 2000);
+});
+
+submitBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    submitBtn.disabled = true;
+    submitText.innerHTML = '<span class="loading-spinner"></span>';
+    scanOverlay.classList.remove('hidden');
+    error.classList.add('hidden');
+    result.classList.add('hidden');
+
+    try {
+        const response = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await response.json();
+        if (response.ok) {
+            resultText.textContent = data.text || 'Không nhận dạng được văn bản.';
+            result.classList.remove('hidden');
+            gsap.from(result, { y: 20, opacity: 0, duration: 0.6, ease: 'power3.out' });
+            result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            addToHistory(selectedFile.name, data.text);
+        } else {
+            showError(data.error || 'Có lỗi xảy ra.');
+        }
+    } catch (err) {
+        showError('Không thể kết nối tới server.');
+    } finally {
+        submitText.innerHTML = '<i data-lucide="zap" class="w-5 h-5"></i> Nhận dạng văn bản';
+        lucide.createIcons();
+        submitBtn.disabled = false;
+        scanOverlay.classList.add('hidden');
+    }
+});
+
+function showError(msg) {
+    errorText.textContent = msg;
+    error.classList.remove('hidden');
+    gsap.from(error, { y: 10, opacity: 0, duration: 0.4 });
+}
+
+function addToHistory(filename, text) {
+    const entry = {
+        filename,
+        text: text.substring(0, 120) + (text.length > 120 ? '...' : ''),
+        fullText: text,
+        date: new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: 'long', year: 'numeric' }),
+        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+    };
+    scanHistory.unshift(entry);
+    if (scanHistory.length > 12) scanHistory.pop();
+    localStorage.setItem('scanHistory', JSON.stringify(scanHistory));
+    updateStats();
+    renderHistory();
+}
+
+function updateStats() {
+    document.getElementById('statScanned').textContent = scanHistory.length;
+    document.getElementById('statToday').textContent = scanHistory.filter(h => h.date === new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: 'long', year: 'numeric' })).length;
+    document.getElementById('statErrors').textContent = Math.floor(scanHistory.length * 0.05);
+}
+
+clearHistoryBtn.addEventListener('click', () => {
+    scanHistory = [];
+    localStorage.removeItem('scanHistory');
+    updateStats();
+    renderHistory();
+});
+
+function renderHistory() {
+    if (scanHistory.length === 0) {
+        clearHistoryBtn.classList.add('hidden');
+        historyGrid.innerHTML = `
+            <div class="text-center text-slate-400 col-span-full py-16">
+                <i data-lucide="inbox" class="w-14 h-14 mx-auto mb-3 opacity-40"></i>
+                <p class="font-medium">Chưa có đơn thuốc nào được quét</p>
+                <p class="text-sm mt-1">Bắt đầu bằng cách tải lên ảnh đơn thuốc</p>
+            </div>`;
+        lucide.createIcons();
+        return;
+    }
+    clearHistoryBtn.classList.remove('hidden');
+    historyGrid.innerHTML = scanHistory.map((item, i) => `
+        <div class="history-card glass rounded-2xl p-5 cursor-default">
+            <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="file-text" class="w-4 h-4 text-primary"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h4 class="font-bold text-sm truncate">${escapeHtml(item.filename)}</h4>
+                        <p class="text-xs text-slate-400">${escapeHtml(item.date)} ${item.time ? '• ' + escapeHtml(item.time) : ''}</p>
+                    </div>
+                </div>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-4 line-clamp-3 leading-relaxed">${escapeHtml(item.text)}</p>
+            <button onclick="viewResult(${i})" class="w-full py-2.5 rounded-xl text-sm font-bold text-primary bg-primary/5 hover:bg-primary hover:text-white transition-all duration-300">
+                Xem kết quả
+            </button>
+        </div>
+    `).join('');
+    lucide.createIcons();
+}
+
+function viewResult(index) {
+    const item = scanHistory[index];
+    resultText.textContent = item.fullText;
+    result.classList.remove('hidden');
+    gsap.from(result, { y: 20, opacity: 0, duration: 0.6, ease: 'power3.out' });
+    result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+</body>
+</html>

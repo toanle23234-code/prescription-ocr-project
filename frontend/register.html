@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng ký - Trợ Lý Y Tế AI</title>
+    <link rel="icon" type="image/svg+xml" href="/frontend/brand/favicon.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+        // Google Sign-In requires 'localhost', not '127.0.0.1'
+        if (location.hostname === '127.0.0.1') {
+            location.replace(location.href.replace('127.0.0.1', 'localhost'));
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: "Plus Jakarta Sans", sans-serif; background: #0f172a; color: white; overflow-x: hidden; min-height: 100vh; }
+        #canvas-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }
+        .glass-panel { background: rgba(30, 41, 59, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .input-glass { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); color: white; transition: all 0.3s ease; }
+        .input-glass:hover { border-color: rgba(99,102,241,0.5); box-shadow: 0 0 12px rgba(99,102,241,0.2); }
+        .input-glass:focus { border-color: #3b82f6; box-shadow: 0 0 15px rgba(59, 130, 246, 0.3); outline: none; }
+        button[type="button"]:hover, button[type="submit"]:hover { box-shadow: 0 0 20px rgba(59,130,246,0.4); }
+        a:hover { text-shadow: 0 0 8px rgba(96,165,250,0.5); }
+        .logo-glow { transition: filter 0.3s ease, transform 0.3s ease; cursor: pointer; }
+        .logo-glow:hover { filter: drop-shadow(0 0 14px rgba(99,102,241,0.7)); transform: scale(1.08); }
+        .logo-glow:active { filter: drop-shadow(0 0 20px rgba(59,130,246,0.9)) brightness(1.2); transform: scale(0.96); }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen py-8">
+    <div id="canvas-container"></div>
+    <div class="absolute top-6 left-6 z-10">
+        <a href="/" class="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            <span>Về trang chủ</span>
+        </a>
+    </div>
+    <div class="max-w-md w-full mx-4 glass-panel rounded-2xl shadow-2xl overflow-hidden relative z-10" id="auth-box">
+        <div class="px-8 pt-8 pb-6">
+            <div class="flex justify-center mb-6">
+                <img src="/frontend/brand/favicon.svg" alt="Logo" class="w-16 h-16 rounded-2xl shadow-lg logo-glow">
+            </div>
+            <h2 class="text-2xl font-bold text-center mb-2">Tạo tài khoản mới</h2>
+            <p class="text-slate-400 text-sm text-center mb-8">Tham gia để sử dụng tính năng của chúng tôi</p>
+            <form id="register-form" class="space-y-4" onsubmit="event.preventDefault();">
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-1">Họ và tên</label>
+                    <div class="relative">
+                        <i data-lucide="user" class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                        <input type="text" id="reg-fullname" class="w-full input-glass rounded-xl py-3 pl-10 pr-4" placeholder="Nguyễn Văn A">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-1">Email</label>
+                    <div class="relative">
+                        <i data-lucide="mail" class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                        <input type="email" id="reg-email" class="w-full input-glass rounded-xl py-3 pl-10 pr-4" placeholder="nhapemail@example.com">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-1">Mật khẩu</label>
+                    <div class="relative">
+                        <i data-lucide="lock" class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                        <input type="password" id="reg-password" class="w-full input-glass rounded-xl py-3 pl-10 pr-10" placeholder="">
+                        <button type="button" onclick="togglePassword('reg-password', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-400 transition-colors" tabindex="-1">
+                            <i data-lucide="eye-off" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <div class="w-full h-1.5 bg-slate-700 rounded-full mt-2 overflow-hidden"><div id="reg-password-strength-bar" class="h-full transition-all duration-300 w-0 bg-slate-500"></div></div>
+                    <p id="reg-password-strength-text" class="text-xs text-slate-400 mt-1">Độ mạnh mật khẩu: Chưa nhập</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-1">Nhập lại mật khẩu</label>
+                    <div class="relative">
+                        <i data-lucide="shield" class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                        <input type="password" id="reg-confirm-password" class="w-full input-glass rounded-xl py-3 pl-10 pr-10" placeholder="Nhập lại mật khẩu">
+                        <button type="button" onclick="togglePassword('reg-confirm-password', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-400 transition-colors" tabindex="-1">
+                            <i data-lucide="eye-off" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <p id="reg-password-match-text" class="text-xs text-slate-400 mt-1">Vui lòng nhập lại mật khẩu để xác nhận.</p>
+                </div>
+
+                <div id="register-otp-block" class="hidden">
+                    <label class="block text-sm font-medium text-slate-300 mb-1">Mã OTP đăng ký</label>
+                    <div class="relative">
+                        <i data-lucide="shield-check" class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                        <input type="text" id="reg-otp" maxlength="6" class="w-full input-glass rounded-xl py-3 pl-10 pr-4 tracking-[0.2em]" placeholder="Nhập 6 số OTP">
+                    </div>
+                </div>
+
+                <button type="button" id="register-send-otp-btn" onclick="handleRegisterSendOtp()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-medium py-3 rounded-xl transition-all shadow-lg shadow-blue-500/25 mt-6 border border-blue-400/20">
+                    Gửi OTP đăng ký
+                </button>
+
+                <button type="button" id="register-verify-otp-btn" onclick="handleRegisterVerifyOtp()" class="hidden w-full bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-medium py-3 rounded-xl transition-all shadow-lg shadow-emerald-500/25 border border-emerald-400/20">
+                    Xác thực OTP và tạo tài khoản
+                </button>
+
+                <div class="relative my-4">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-slate-700/80"></div>
+                    </div>
+                    <div class="relative flex justify-center text-xs uppercase tracking-wider">
+                        <span class="px-3 bg-slate-900/70 text-slate-400 rounded">Hoặc đăng ký bằng Google</span>
+                    </div>
+                </div>
+
+                <div id="google-register-wrap" class="w-full flex justify-center">
+                    <div id="google-register-button" class="flex justify-center"></div>
+                </div>
+                <p id="google-register-hint" class="text-center text-xs mt-2 hidden"></p>
+
+                <p id="register-message" class="hidden text-sm rounded-xl px-4 py-3"></p>
+                <div id="reg-dev-otp-box" class="hidden mt-3 rounded-xl border border-amber-400/35 bg-amber-500/10 px-4 py-3">
+                    <p class="text-xs text-amber-200 font-semibold">OTP fallback (môi trường local/dev)</p>
+                    <p class="text-2xl tracking-[0.25em] font-bold text-amber-100 mt-1" id="reg-dev-otp-value">------</p>
+                    <p class="text-[11px] text-amber-200/90 mt-1">Dùng mã này để xác thực OTP khi email chưa gửi được.</p>
+                </div>
+                <p class="text-center text-sm text-slate-400 mt-4">
+                    Đã có tài khoản?
+                    <a href="/login" class="text-blue-400 hover:underline font-semibold">Đăng nhập</a>
+                </p>
+            </form>
+        </div>
+    </div>
+    <div id="success-toast" style="display:none;" class="fixed inset-0 flex items-center justify-center z-50">
+        <div class="glass-panel rounded-2xl px-8 py-6 shadow-2xl border border-blue-400/30 bg-gradient-to-br from-blue-600/80 to-indigo-600/80 text-white text-center text-lg font-semibold animate__animated animate__fadeInDown">
+            <span id="success-toast-message"></span>
+        </div>
+    </div>
+    <script>
+        lucide.createIcons();
+
+        function togglePassword(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            btn.innerHTML = isHidden
+                ? '<i data-lucide="eye" class="w-5 h-5"></i>'
+                : '<i data-lucide="eye-off" class="w-5 h-5"></i>';
+            lucide.createIcons({ nodes: [btn] });
+        }
+
+        // Canvas animation (Neural Network background)
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        document.getElementById("canvas-container").appendChild(canvas);
+        let width, height, particles;
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            initParticles();
+        }
+        class Particle {
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.vx = (Math.random() - 0.5) * 1;
+                this.vy = (Math.random() - 0.5) * 1;
+                this.radius = Math.random() * 2 + 1;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.x < 0 || this.x > width) this.vx = -this.vx;
+                if (this.y < 0 || this.y > height) this.vy = -this.vy;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = "rgba(59, 130, 246, 0.5)";
+                ctx.fill();
+            }
+        }
+        function initParticles() {
+            particles = [];
+            const numParticles = Math.floor((width * height) / 15000);
+            for (let i = 0; i < numParticles; i++) {
+                particles.push(new Particle());
+            }
+        }
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 150) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(59, 130, 246, ${1 - dist / 150})`;
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            requestAnimationFrame(animate);
+        }
+        window.addEventListener("resize", resize);
+        resize();
+        animate();
+        gsap.from("#auth-box", { y: 30, opacity: 0, duration: 0.8, ease: "power3.out" });
+        function showSuccessToast(message, callback) {
+            const toast = document.getElementById('success-toast');
+            const msg = document.getElementById('success-toast-message');
+            msg.textContent = message;
+            toast.style.display = 'flex';
+            setTimeout(() => {
+                toast.style.display = 'none';
+                if (callback) callback();
+            }, 1800);
+        }
+        function showRegisterMessage(message, ok = true) {
+            const msg = document.getElementById('register-message');
+            msg.textContent = message;
+            msg.classList.remove('hidden');
+            msg.className = ok
+                ? 'text-sm rounded-xl px-4 py-3 text-emerald-300 bg-emerald-500/10 border border-emerald-400/30'
+                : 'text-sm rounded-xl px-4 py-3 text-red-200 bg-red-500/10 border border-red-400/30';
+        }
+
+        function getRegisterPayload() {
+            return {
+                fullname: (document.getElementById('reg-fullname').value || '').trim(),
+                email: (document.getElementById('reg-email').value || '').trim(),
+                password: (document.getElementById('reg-password').value || '').trim(),
+            };
+        }
+
+        function evaluatePasswordStrength(password) {
+            const value = String(password || '');
+            if (!value) {
+                return {
+                    level: 'empty',
+                    label: 'Chưa nhập',
+                    widthClass: 'w-0',
+                    barClass: 'bg-slate-500',
+                    textClass: 'text-slate-400'
+                };
+            }
+
+            if (value.length < 8) {
+                return {
+                    level: 'weak',
+                    label: 'Yếu (dưới 8 ký tự)',
+                    widthClass: 'w-1/3',
+                    barClass: 'bg-red-500',
+                    textClass: 'text-red-300'
+                };
+            }
+
+            if (value.length >= 14) {
+                return {
+                    level: 'strong',
+                    label: 'Mạnh (từ 14 ký tự)',
+                    widthClass: 'w-full',
+                    barClass: 'bg-emerald-500',
+                    textClass: 'text-emerald-300'
+                };
+            }
+
+            let score = 0;
+            if (/[a-z]/.test(value)) score += 1;
+            if (/[A-Z]/.test(value)) score += 1;
+            if (/\d/.test(value)) score += 1;
+            if (/[^A-Za-z0-9]/.test(value)) score += 1;
+
+            if (score <= 2) {
+                return {
+                    level: 'medium',
+                    label: 'Trung bình',
+                    widthClass: 'w-2/3',
+                    barClass: 'bg-amber-400',
+                    textClass: 'text-amber-300'
+                };
+            }
+
+            return {
+                level: 'strong',
+                label: 'Mạnh',
+                widthClass: 'w-full',
+                barClass: 'bg-emerald-500',
+                textClass: 'text-emerald-300'
+            };
+        }
+
+        function renderPasswordStrength() {
+            const password = (document.getElementById('reg-password').value || '').trim();
+            const status = evaluatePasswordStrength(password);
+            const bar = document.getElementById('reg-password-strength-bar');
+            const text = document.getElementById('reg-password-strength-text');
+
+            if (bar) bar.className = `h-full transition-all duration-300 ${status.widthClass} ${status.barClass}`;
+            text.className = `text-xs mt-1 ${status.textClass}`;
+            text.textContent = `Độ mạnh mật khẩu: ${status.label}`;
+        }
+
+        function renderPasswordMatchHint() {
+            const password = (document.getElementById('reg-password').value || '').trim();
+            const confirmPassword = (document.getElementById('reg-confirm-password').value || '').trim();
+            const hint = document.getElementById('reg-password-match-text');
+
+            if (!confirmPassword) {
+                hint.className = 'text-xs text-slate-400 mt-1';
+                hint.textContent = 'Vui lòng nhập lại mật khẩu để xác nhận.';
+                return;
+            }
+
+            if (password === confirmPassword) {
+                hint.className = 'text-xs text-emerald-300 mt-1';
+                hint.textContent = 'Mật khẩu khớp.';
+                return;
+            }
+
+            hint.className = 'text-xs text-red-300 mt-1';
+            hint.textContent = 'Mật khẩu nhập lại không khớp.';
+        }
+
+        function validateRegisterPassword() {
+            const password = (document.getElementById('reg-password').value || '').trim();
+            const confirmPassword = (document.getElementById('reg-confirm-password').value || '').trim();
+
+            if (password.length < 8) {
+                showRegisterMessage('Mật khẩu dưới 8 ký tự là yếu. Vui lòng đặt mật khẩu ít nhất 8 ký tự.', false);
+                return false;
+            }
+
+            if (!confirmPassword) {
+                showRegisterMessage('Vui lòng nhập lại mật khẩu.', false);
+                return false;
+            }
+
+            if (password !== confirmPassword) {
+                showRegisterMessage('Mật khẩu nhập lại không khớp.', false);
+                return false;
+            }
+
+            return true;
+        }
+
+        function initRegisterPasswordUi() {
+            const passwordInput = document.getElementById('reg-password');
+            const confirmInput = document.getElementById('reg-confirm-password');
+
+            passwordInput.addEventListener('input', () => {
+                renderPasswordStrength();
+                renderPasswordMatchHint();
+            });
+            confirmInput.addEventListener('input', renderPasswordMatchHint);
+
+            renderPasswordStrength();
+            renderPasswordMatchHint();
+        }
+
+        function setGoogleRegisterHint(message, isError = false) {
+            const hint = document.getElementById('google-register-hint');
+            if (!hint) return;
+
+            if (!message) {
+                hint.classList.add('hidden');
+                hint.textContent = '';
+                return;
+            }
+
+            hint.textContent = message;
+            hint.classList.remove('hidden');
+            hint.classList.toggle('text-red-300', isError);
+            hint.classList.toggle('text-slate-400', !isError);
+        }
+
+        async function initGoogleRegister(retries) {
+            if (retries === undefined) retries = 10;
+            try {
+                const response = await fetch('/api/auth/google-config');
+                const config = await response.json();
+
+                if (!config.success || !config.enabled || !config.clientId) {
+                    setGoogleRegisterHint('Đăng ký Google hiện chưa được cấu hình trên máy chủ.');
+                    return;
+                }
+                if (!config.googleAuthLibInstalled) {
+                    setGoogleRegisterHint('Máy chủ chưa cài google-auth, chưa thể dùng đăng ký Google.', true);
+                    return;
+                }
+
+                if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+                    if (retries > 0) {
+                        await new Promise(r => setTimeout(r, 500));
+                        return initGoogleRegister(retries - 1);
+                    }
+                    setGoogleRegisterHint('Không tải được Google Sign-In. Vui lòng thử tải lại trang.', true);
+                    return;
+                }
+
+                window.google.accounts.id.initialize({
+                    client_id: config.clientId,
+                    callback: handleGoogleRegisterCredential,
+                    auto_select: false,
+                    cancel_on_tap_outside: true
+                });
+
+                const btnHost = document.getElementById('google-register-button');
+                const width = Math.max(240, Math.min(360, (btnHost.clientWidth || 300)));
+                window.google.accounts.id.renderButton(btnHost, {
+                    theme: 'outline',
+                    size: 'large',
+                    shape: 'pill',
+                    text: 'signup_with',
+                    width
+                });
+
+                setGoogleRegisterHint('');
+            } catch (err) {
+                setGoogleRegisterHint('Không kết nối được máy chủ để khởi tạo đăng ký Google.', true);
+            }
+        }
+
+        async function handleGoogleRegisterCredential(response) {
+            const idToken = (response && response.credential) ? response.credential : '';
+            if (!idToken) {
+                showRegisterMessage('Không nhận được thông tin đăng ký từ Google. Vui lòng thử lại.', false);
+                return;
+            }
+
+            try {
+                const registerRes = await fetch('/api/register/google', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idToken })
+                });
+                const data = await registerRes.json();
+
+                if (!registerRes.ok || !data.success) {
+                    showRegisterMessage(data.error || 'Đăng ký với Google thất bại.', false);
+                    return;
+                }
+
+                showSuccessToast(data.message || 'Đăng ký bằng Google thành công!', () => {
+                    window.location.href = '/login';
+                });
+            } catch (err) {
+                showRegisterMessage('Không thể kết nối đến máy chủ khi đăng ký Google.', false);
+            }
+        }
+
+
+        async function handleRegisterSendOtp() {
+            const payload = getRegisterPayload();
+            if (!payload.fullname || !payload.email || !payload.password) {
+                showRegisterMessage('Vui lòng nhập đầy đủ họ tên, email và mật khẩu.', false);
+                return;
+            }
+            if (!validateRegisterPassword()) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/register/request-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    showRegisterMessage(data.error || 'Không thể gửi OTP đăng ký.', false);
+                    return;
+                }
+
+                showRegisterMessage(data.message || 'OTP đăng ký đã được gửi về email của bạn.', true);
+                document.getElementById('register-otp-block').classList.remove('hidden');
+                document.getElementById('register-verify-otp-btn').classList.remove('hidden');
+                document.getElementById('register-send-otp-btn').textContent = 'Gửi lại OTP đăng ký';
+
+                // Hiển thị OTP khi SMTP lỗi (dev-fallback)
+                const devOtpBox = document.getElementById('reg-dev-otp-box');
+                const devOtpVal = document.getElementById('reg-dev-otp-value');
+                if (data.devOtp && devOtpBox && devOtpVal) {
+                    devOtpVal.textContent = data.devOtp;
+                    devOtpBox.classList.remove('hidden');
+                } else if (devOtpBox) {
+                    devOtpBox.classList.add('hidden');
+                }
+
+                document.getElementById('reg-otp').focus();
+            } catch (err) {
+                showRegisterMessage('Lỗi kết nối đến máy chủ.', false);
+            }
+        }
+
+        async function handleRegisterVerifyOtp() {
+            const email = (document.getElementById('reg-email').value || '').trim();
+            const otp = (document.getElementById('reg-otp').value || '').trim();
+            if (!email || !/^\d{6}$/.test(otp)) {
+                showRegisterMessage('Vui lòng nhập email và OTP 6 số hợp lệ.', false);
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/register/verify-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, otp })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    showRegisterMessage(data.error || 'Xác thực OTP đăng ký thất bại.', false);
+                    return;
+                }
+
+                showSuccessToast(data.message || 'Đăng ký thành công! Xin mời đăng nhập.', () => {
+                    window.location.href = '/login';
+                });
+            } catch (err) {
+                showRegisterMessage('Lỗi kết nối đến máy chủ.', false);
+            }
+        }
+
+        initRegisterPasswordUi();
+        window.addEventListener('load', initGoogleRegister);
+    </script>
+</body>
+</html>

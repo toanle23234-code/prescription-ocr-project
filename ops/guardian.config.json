@@ -1,0 +1,33 @@
+{
+  "project_root": ".",
+  "check_interval_seconds": 15,
+  "failure_threshold": 2,
+  "request_timeout_seconds": 7,
+  "artifacts_dir": "ops/autofix_artifacts",
+  "endpoints": [
+    {
+      "url": "http://127.0.0.1:5000/",
+      "expected_status": [200]
+    },
+    {
+      "url": "http://127.0.0.1:5000/history",
+      "expected_status": [200]
+    }
+  ],
+  "manage_process": {
+    "enabled": true,
+    "start_command": "python backend/app.py",
+    "working_dir": "."
+  },
+  "self_heal": {
+    "restart_process_on_failure": true
+  },
+  "ai": {
+    "enabled": true,
+    "api_key_env": "OPENAI_API_KEY",
+    "base_url": "https://api.openai.com/v1/chat/completions",
+    "model": "gpt-5.3-codex",
+    "max_tokens": 700,
+    "temperature": 0.2
+  }
+}

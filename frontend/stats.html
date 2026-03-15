@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html class="light" lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Thống kê OCR - OCR Thuốc</title>
+    <link rel="icon" type="image/svg+xml" href="/frontend/brand/favicon.svg">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { DEFAULT: "#0ea5a4", 600: "#068585" },
+                        accent: { DEFAULT: "#22c55e" },
+                        dark: { 800: "#1e293b", 900: "#0f172a" }
+                    },
+                    fontFamily: { display: ["Poppins", "Inter", "sans-serif"], body: ["Inter", "sans-serif"] },
+                }
+            }
+        };
+    </script>
+    <style>
+        body { font-family: "Inter", sans-serif; overflow-x: hidden; }
+        h1, h2, h3, .font-display { font-family: "Poppins", sans-serif; }
+        .glass { background: rgba(255,255,255,0.64); backdrop-filter: blur(20px) saturate(180%); border: 1px solid rgba(255,255,255,0.3); }
+        .dark .glass { background: rgba(30,41,59,0.64); border-color: rgba(255,255,255,0.08); }
+        .sidebar-link { transition: all 0.3s ease; }
+        .sidebar-link.active { background: rgba(14,165,164,0.1); color: #0ea5a4; font-weight: 700; }
+        .brand-logo-image {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 12px;
+            display: block;
+            box-shadow: 0 6px 14px rgba(14, 165, 164, 0.24);
+        }
+        .brand-logo-fallback {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #60a5fa 0%, #1d4ed8 100%);
+            color: #ffffff;
+            font-size: 20px;
+            font-weight: 700;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 14px rgba(29, 78, 216, 0.35);
+        }
+        .kpi-card {
+            border-radius: 1rem;
+            background: rgba(255,255,255,0.78);
+            border: 1px solid rgba(148,163,184,0.28);
+            box-shadow: 0 10px 24px rgba(15,23,42,0.05);
+            transition: all 0.3s ease;
+        }
+        .kpi-value {
+            font-size: 1.6rem;
+            line-height: 1.1;
+        }
+        .kpi-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(20,184,166,0.45);
+            box-shadow: 0 14px 30px rgba(14,165,164,0.12);
+        }
+        .dark .kpi-card {
+            background: rgba(30,41,59,0.64);
+            border-color: rgba(148,163,184,0.24);
+        }
+        .chart-card {
+            border-radius: 1rem;
+            background: rgba(255,255,255,0.74);
+            border: 1px solid rgba(148,163,184,0.26);
+            box-shadow: 0 10px 22px rgba(15,23,42,0.05);
+        }
+        .dark .chart-card {
+            background: rgba(15,23,42,0.6);
+            border-color: rgba(148,163,184,0.24);
+        }
+        .table-row { border-bottom: 1px dashed rgba(148,163,184,0.35); }
+        .table-row:last-child { border-bottom: none; }
+        .compact-pill { padding: 0.58rem 0.72rem; }
+        .quality-card { padding: 0.78rem !important; }
+        .quality-chart-wrap {
+            max-width: 170px;
+            margin: 0 auto;
+        }
+        .quality-meta {
+            margin-top: 0.55rem;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.4rem;
+            font-size: 0.76rem;
+            color: rgb(100 116 139);
+        }
+        .dark .quality-meta {
+            color: rgb(148 163 184);
+        }
+        .quality-meta-box {
+            border-radius: 0.62rem;
+            padding: 0.42rem 0.5rem;
+            background: rgba(148, 163, 184, 0.12);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+        #ambient {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: -1;
+            background:
+                radial-gradient(560px 300px at 18% 14%, rgba(14,165,164,0.16), transparent 70%),
+                radial-gradient(460px 240px at 82% 24%, rgba(59,130,246,0.14), transparent 70%),
+                radial-gradient(420px 260px at 50% 86%, rgba(34,197,94,0.09), transparent 70%);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 via-white to-teal-50/30 dark:from-dark-900 dark:via-dark-900 dark:to-slate-900 text-slate-900 dark:text-slate-200 min-h-screen font-body">
+<div id="ambient"></div>
+<div class="flex min-h-screen">
+    <aside class="w-[260px] fixed top-0 left-0 h-full z-40 glass border-r border-primary/10 flex flex-col">
+        <div class="flex items-center gap-3 px-6 py-6 border-b border-primary/10">
+            <div class="w-10 h-10 flex items-center justify-center flex-shrink-0 select-none">
+                <img src="/frontend/brand/logo-ai-engine.png" alt="Logo AI Engine" class="brand-logo-image" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"/>
+                <div class="brand-logo-fallback" aria-hidden="true">💊</div>
+            </div>
+            <span class="font-display font-extrabold text-lg bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">OCR Thuốc</span>
+        </div>
+        <nav class="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
+            <a href="/" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-300 hover:text-primary"><i data-lucide="layout-dashboard" class="w-5 h-5"></i><span>Trang chủ</span></a>
+            <a href="/#uploadSection" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-300 hover:text-primary"><i data-lucide="scan-line" class="w-5 h-5"></i><span>Quét đơn thuốc</span></a>
+            <a href="/stats" class="sidebar-link active flex items-center gap-3 px-4 py-3 rounded-xl"><i data-lucide="bar-chart-3" class="w-5 h-5"></i><span>Thống kê</span></a>
+            <a href="/history" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-300 hover:text-primary"><i data-lucide="history" class="w-5 h-5"></i><span>Lịch sử tra cứu</span></a>
+            <a href="/profile" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-300 hover:text-primary"><i data-lucide="settings" class="w-5 h-5"></i><span>Cài đặt</span></a>
+        </nav>
+    </aside>
+
+    <main class="flex-1 ml-[260px] p-7">
+        <header class="glass rounded-2xl p-3.5 flex items-center justify-between mb-5">
+            <div>
+                <h1 class="font-display text-[1.45rem] font-extrabold">Bảng điều khiển thống kê OCR</h1>
+                <p class="text-sm text-slate-500 dark:text-slate-300 mt-1">Theo dõi hiệu quả quét đơn thuốc, lỗi và xu hướng sử dụng theo thời gian.</p>
+            </div>
+            <button id="themeToggle" class="p-2.5 rounded-xl bg-slate-100/80 dark:bg-dark-800/80 hover:bg-primary/10 transition-all" title="Đổi giao diện">
+                <i data-lucide="sun" class="w-5 h-5 text-amber-500 dark:hidden"></i>
+                <i data-lucide="moon" class="w-5 h-5 text-blue-400 hidden dark:block"></i>
+            </button>
+        </header>
+
+        <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5 mb-5">
+            <div class="kpi-card p-3.5">
+                <p class="text-xs text-slate-500 dark:text-slate-400">Tổng đơn đã quét</p>
+                <p id="kpiTotalScans" class="kpi-value mt-1.5 font-extrabold">0</p>
+            </div>
+            <div class="kpi-card p-3.5">
+                <p class="text-xs text-slate-500 dark:text-slate-400">Đơn quét hôm nay</p>
+                <p id="kpiTodayScans" class="kpi-value mt-1.5 font-extrabold">0</p>
+            </div>
+            <div class="kpi-card p-3.5">
+                <p class="text-xs text-slate-500 dark:text-slate-400">Tỉ lệ thành công</p>
+                <p id="kpiSuccessRate" class="kpi-value mt-1.5 font-extrabold">0%</p>
+            </div>
+            <div class="kpi-card p-3.5">
+                <p class="text-xs text-slate-500 dark:text-slate-400">Số lỗi quét</p>
+                <p id="kpiTotalErrors" class="kpi-value mt-1.5 font-extrabold">0</p>
+            </div>
+        </section>
+
+        <section class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-5">
+            <article class="chart-card p-3.5 xl:col-span-2">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-display font-bold">Xu hướng 30 ngày</h3>
+                    <span id="kpiPeakDay" class="text-xs text-slate-500 dark:text-slate-400">Ngày cao điểm: -</span>
+                </div>
+                <canvas id="scansTrendChart" height="102"></canvas>
+            </article>
+            <article class="chart-card quality-card">
+                <h3 class="font-display font-bold mb-2">Chất lượng OCR</h3>
+                <div class="quality-chart-wrap">
+                    <canvas id="qualityChart" height="108"></canvas>
+                </div>
+                <div class="quality-meta">
+                    <div class="quality-meta-box">Tỉ lệ lỗi: <span id="kpiErrorRate" class="font-bold text-red-500">0%</span></div>
+                    <div class="quality-meta-box">TB/ngày: <span id="kpiAvgPerDay" class="font-bold text-primary">0</span></div>
+                </div>
+            </article>
+        </section>
+
+        <section class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-5">
+            <article class="chart-card p-3.5">
+                <h3 class="font-display font-bold mb-3">Phân bố theo khung giờ</h3>
+                <canvas id="hourChart" height="119"></canvas>
+            </article>
+            <article class="chart-card p-3.5">
+                <h3 class="font-display font-bold mb-3">Phân bố theo thứ trong tuần</h3>
+                <canvas id="weekdayChart" height="119"></canvas>
+            </article>
+        </section>
+
+        <section class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <article class="chart-card p-3.5">
+                <h3 class="font-display font-bold mb-3">Top tên file được quét</h3>
+                <div id="topFilesTable" class="text-[13px]"></div>
+            </article>
+            <article class="chart-card p-3.5">
+                <h3 class="font-display font-bold mb-3">Thống kê mở rộng</h3>
+                <div class="space-y-2.5 text-sm">
+                    <div class="compact-pill flex items-center justify-between rounded-xl bg-slate-100/70 dark:bg-dark-800/70">
+                        <span class="text-slate-600 dark:text-slate-300">Đơn 7 ngày gần nhất</span>
+                        <span id="kpiLast7Scans" class="font-extrabold">0</span>
+                    </div>
+                    <div class="compact-pill flex items-center justify-between rounded-xl bg-slate-100/70 dark:bg-dark-800/70">
+                        <span class="text-slate-600 dark:text-slate-300">Đơn 30 ngày gần nhất</span>
+                        <span id="kpiLast30Scans" class="font-extrabold">0</span>
+                    </div>
+                    <div class="compact-pill flex items-center justify-between rounded-xl bg-slate-100/70 dark:bg-dark-800/70">
+                        <span class="text-slate-600 dark:text-slate-300">Lỗi hôm nay</span>
+                        <span id="kpiTodayErrors" class="font-extrabold">0</span>
+                    </div>
+                    <div class="compact-pill flex items-center justify-between rounded-xl bg-slate-100/70 dark:bg-dark-800/70">
+                        <span class="text-slate-600 dark:text-slate-300">Lỗi 7 ngày gần nhất</span>
+                        <span id="kpiLast7Errors" class="font-extrabold">0</span>
+                    </div>
+                </div>
+            </article>
+        </section>
+    </main>
+</div>
+
+<script>
+lucide.createIcons();
+
+const themeToggle = document.getElementById('themeToggle');
+const savedTheme = localStorage.getItem('theme');
+if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    document.documentElement.classList.add('dark');
+}
+themeToggle.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    lucide.createIcons();
+});
+
+let scansTrendChart;
+let qualityChart;
+let hourChart;
+let weekdayChart;
+
+function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = String(value);
+}
+
+function setTopFiles(items) {
+    const table = document.getElementById('topFilesTable');
+    if (!items || items.length === 0) {
+        table.innerHTML = '<p class="text-slate-500 dark:text-slate-400">Chưa có dữ liệu quét để thống kê.</p>';
+        return;
+    }
+
+    table.innerHTML = items.map((item, index) => `
+        <div class="table-row flex items-center justify-between py-2">
+            <div class="min-w-0 pr-2">
+                <p class="font-semibold truncate">${index + 1}. ${item.filename}</p>
+            </div>
+            <span class="inline-flex items-center justify-center min-w-8 px-2 py-1 rounded-lg bg-primary/15 text-primary font-bold">${item.count}</span>
+        </div>
+    `).join('');
+}
+
+function destroyCharts() {
+    if (scansTrendChart) scansTrendChart.destroy();
+    if (qualityChart) qualityChart.destroy();
+    if (hourChart) hourChart.destroy();
+    if (weekdayChart) weekdayChart.destroy();
+}
+
+function buildCharts(charts) {
+    destroyCharts();
+
+    scansTrendChart = new Chart(document.getElementById('scansTrendChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: charts.scansByDate30.labels,
+            datasets: [{
+                label: 'Số đơn quét',
+                data: charts.scansByDate30.values,
+                borderColor: '#0ea5a4',
+                backgroundColor: 'rgba(14,165,164,0.18)',
+                fill: true,
+                tension: 0.35,
+                pointRadius: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+
+    qualityChart = new Chart(document.getElementById('qualityChart').getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: charts.qualityDonut.labels,
+            datasets: [{
+                data: charts.qualityDonut.values,
+                backgroundColor: ['#22c55e', '#ef4444']
+            }]
+        },
+        options: {
+            responsive: true,
+            cutout: '66%',
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    hourChart = new Chart(document.getElementById('hourChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: charts.scansByHour.labels,
+            datasets: [{
+                label: 'Số đơn',
+                data: charts.scansByHour.values,
+                backgroundColor: 'rgba(59,130,246,0.72)',
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+
+    weekdayChart = new Chart(document.getElementById('weekdayChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: charts.scansByWeekday.labels,
+            datasets: [{
+                label: 'Số đơn',
+                data: charts.scansByWeekday.values,
+                backgroundColor: 'rgba(14,165,164,0.7)',
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+}
+
+async function loadDashboardStats() {
+    try {
+        const response = await fetch('/api/stats/dashboard');
+        const payload = await response.json();
+        if (!response.ok || !payload.success || !payload.data) {
+            throw new Error(payload.error || 'Không tải được dữ liệu thống kê.');
+        }
+
+        const kpi = payload.data.kpi;
+        setText('kpiTotalScans', kpi.totalScans);
+        setText('kpiTodayScans', kpi.todayScans);
+        setText('kpiLast7Scans', kpi.last7DaysScans);
+        setText('kpiLast30Scans', kpi.last30DaysScans);
+        setText('kpiSuccessRate', `${kpi.successRate}%`);
+        setText('kpiTotalErrors', kpi.totalErrors);
+        setText('kpiTodayErrors', kpi.todayErrors);
+        setText('kpiLast7Errors', kpi.last7DaysErrors);
+        setText('kpiErrorRate', `${kpi.errorRate}%`);
+        setText('kpiAvgPerDay', kpi.avgPerDay30);
+
+        const peakText = kpi.peakDay && kpi.peakDay.date
+            ? `Ngày cao điểm: ${kpi.peakDay.date} (${kpi.peakDay.count} đơn)`
+            : 'Ngày cao điểm: chưa có dữ liệu';
+        setText('kpiPeakDay', peakText);
+
+        setTopFiles(payload.data.topFilenames || []);
+        buildCharts(payload.data.charts);
+
+        gsap.from('.kpi-card, .chart-card', {
+            y: 18,
+            opacity: 0,
+            duration: 0.45,
+            stagger: 0.05,
+            ease: 'power2.out'
+        });
+    } catch (error) {
+        const target = document.getElementById('topFilesTable');
+        target.innerHTML = `<p class="text-red-500">${error.message}</p>`;
+    }
+}
+
+loadDashboardStats();
+</script>
+</script>
+</body>
+</html>

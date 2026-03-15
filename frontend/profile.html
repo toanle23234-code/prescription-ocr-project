@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html class="light" lang="vi">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Hồ sơ cá nhân - OCR Thuốc</title>
+    <link rel="icon" type="image/svg+xml" href="/frontend/brand/favicon.svg">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet"/>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { DEFAULT: "#0ea5a4", 600: "#068585" },
+                        accent: { DEFAULT: "#22c55e" },
+                        dark: { 800: "#1e293b", 900: "#0f172a" }
+                    },
+                    fontFamily: {
+                        display: ["Poppins", "Inter", "sans-serif"],
+                        body: ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        body { font-family: "Inter", sans-serif; }
+        .glass {
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(18px) saturate(180%);
+            border: 1px solid rgba(148, 163, 184, 0.34);
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05), 0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+        }
+        .dark .glass { background: rgba(30, 41, 59, 0.65); border-color: rgba(255, 255, 255, 0.08); }
+        .field {
+            background: rgba(241, 245, 249, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.5);
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+        }
+        .field:focus { border-color: rgba(14, 165, 164, 0.45); box-shadow: 0 0 0 4px rgba(14, 165, 164, 0.12); }
+        .dark .field {
+            background: rgba(15, 23, 42, 0.7);
+            color: #e2e8f0;
+            border-color: rgba(148, 163, 184, 0.3);
+            box-shadow: none;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 via-white to-teal-50/40 dark:from-dark-900 dark:via-dark-900 dark:to-slate-900 text-slate-900 dark:text-slate-200 min-h-screen font-body">
+    <div class="min-h-screen px-4 py-6 sm:p-8">
+        <div class="max-w-5xl mx-auto">
+            <header class="glass rounded-3xl px-5 sm:px-7 py-4 mb-6 sm:mb-8 flex items-center justify-between">
+                <a href="/" class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-primary transition-colors">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                    <span class="font-semibold">Về trang chủ</span>
+                </a>
+                <button id="logoutBtn" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-200/80 dark:bg-dark-800 hover:bg-red-500 hover:text-white text-slate-700 dark:text-slate-200 transition-all text-sm font-semibold">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                    Đăng xuất
+                </button>
+            </header>
+
+            <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <section class="glass rounded-3xl p-6 sm:p-7 lg:col-span-1">
+                    <div class="flex flex-col items-center text-center">
+                        <div id="avatar" class="w-24 h-24 rounded-3xl overflow-hidden bg-gradient-to-br from-primary to-accent text-white text-3xl font-bold flex items-center justify-center shadow-xl shadow-primary/25 mb-4">
+                            <img id="avatarImage" alt="Avatar" class="w-full h-full object-cover hidden" />
+                            <span id="avatarInitial">U</span>
+                        </div>
+                        <div class="flex items-center gap-2 mb-4">
+                            <button id="changeAvatarBtn" type="button" class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-dark-800 dark:hover:bg-slate-700 text-xs font-semibold transition-all">
+                                <i data-lucide="image-up" class="w-4 h-4"></i>
+                                Đổi ảnh
+                            </button>
+                            <button id="useGoogleAvatarBtn" type="button" class="hidden inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-800/40 text-blue-600 dark:text-blue-400 text-xs font-semibold transition-all">
+                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                                Dùng ảnh Google
+                            </button>
+                            <input id="avatarInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/tiff" class="hidden" />
+                        </div>
+                        <h1 id="profileName" class="font-display text-2xl font-bold">Người dùng</h1>
+                        <p id="profileEmail" class="text-sm text-slate-500 dark:text-slate-400 mt-1 break-all">email@example.com</p>
+                    </div>
+
+                    <div class="mt-6 pt-6 border-t border-slate-200/70 dark:border-slate-700/60 space-y-3 text-sm">
+                        <div class="flex items-start gap-3">
+                            <i data-lucide="phone" class="w-4 h-4 mt-0.5 text-primary"></i>
+                            <p id="profilePhone" class="text-slate-600 dark:text-slate-300">Chưa cập nhật số điện thoại</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <i data-lucide="calendar-days" class="w-4 h-4 mt-0.5 text-primary"></i>
+                            <p id="profileBirth" class="text-slate-600 dark:text-slate-300">Chưa cập nhật ngày sinh</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <i data-lucide="map-pin" class="w-4 h-4 mt-0.5 text-primary"></i>
+                            <p id="profileAddress" class="text-slate-600 dark:text-slate-300">Chưa cập nhật địa chỉ</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="glass rounded-3xl p-6 sm:p-7 lg:col-span-2">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 class="font-display text-xl sm:text-2xl font-bold">Tùy chỉnh hồ sơ cá nhân</h2>
+                            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Cập nhật thông tin để hệ thống hỗ trợ bạn tốt hơn.</p>
+                        </div>
+                        <button id="themeToggle" class="p-2.5 rounded-xl bg-slate-100 dark:bg-dark-800 hover:bg-primary/10 transition-all" title="Đổi giao diện">
+                            <i data-lucide="sun" class="w-5 h-5 text-amber-500 dark:hidden"></i>
+                            <i data-lucide="moon" class="w-5 h-5 text-blue-400 hidden dark:block"></i>
+                        </button>
+                    </div>
+
+                    <form id="profileForm" class="space-y-4">
+                        <div>
+                            <label for="fullname" class="block text-sm font-semibold mb-1.5">Họ và tên</label>
+                            <input id="fullname" type="text" class="field w-full rounded-xl px-4 py-3" required />
+                        </div>
+                        <div>
+                            <label for="email" class="block text-sm font-semibold mb-1.5">Email</label>
+                            <input id="email" type="email" class="field w-full rounded-xl px-4 py-3 opacity-80 cursor-not-allowed" readonly />
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label for="phone" class="block text-sm font-semibold mb-1.5">Số điện thoại</label>
+                                <input id="phone" type="text" class="field w-full rounded-xl px-4 py-3" placeholder="Ví dụ: 0901234567" />
+                            </div>
+                            <div>
+                                <label for="birth_date" class="block text-sm font-semibold mb-1.5">Ngày sinh</label>
+                                <input id="birth_date" type="text" class="field w-full rounded-xl px-4 py-3" placeholder="dd/mm/yyyy" maxlength="10" inputmode="numeric" />
+                            </div>
+                        </div>
+                        <div>
+                            <label for="address" class="block text-sm font-semibold mb-1.5">Địa chỉ</label>
+                            <input id="address" type="text" class="field w-full rounded-xl px-4 py-3" placeholder="Quận/Huyện, Tỉnh/Thành" />
+                        </div>
+                        <div>
+                            <label for="bio" class="block text-sm font-semibold mb-1.5">Giới thiệu ngắn</label>
+                            <textarea id="bio" rows="4" class="field w-full rounded-xl px-4 py-3" placeholder="Mô tả ngắn về bạn"></textarea>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3 pt-2">
+                            <button id="saveBtn" type="submit" class="inline-flex items-center gap-2 bg-gradient-to-r from-primary to-primary-600 hover:opacity-90 text-white px-5 py-3 rounded-xl font-semibold shadow-lg shadow-primary/25 transition-all">
+                                <i data-lucide="save" class="w-4 h-4"></i>
+                                Lưu thay đổi
+                            </button>
+                            <p id="statusText" class="text-sm text-slate-500 dark:text-slate-400"></p>
+                        </div>
+                    </form>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        const profileForm = document.getElementById("profileForm");
+        const statusText = document.getElementById("statusText");
+        const saveBtn = document.getElementById("saveBtn");
+        const logoutBtn = document.getElementById("logoutBtn");
+        const themeToggle = document.getElementById("themeToggle");
+        const avatarInput = document.getElementById("avatarInput");
+        const changeAvatarBtn = document.getElementById("changeAvatarBtn");
+        const useGoogleAvatarBtn = document.getElementById("useGoogleAvatarBtn");
+        const avatarImage = document.getElementById("avatarImage");
+        const avatarInitial = document.getElementById("avatarInitial");
+        let currentAvatarUrl = "";
+        let googleAvatarUrl = "";
+
+        function setStatus(message, isError = false) {
+            statusText.textContent = message;
+            statusText.className = isError
+                ? "text-sm text-red-500"
+                : "text-sm text-emerald-600 dark:text-emerald-400";
+        }
+
+        // Auto-format dd/mm/yyyy as user types
+        document.getElementById("birth_date").addEventListener("input", function(e) {
+            let v = e.target.value.replace(/\D/g, '').slice(0, 8);
+            if (v.length > 4) v = v.slice(0,2) + '/' + v.slice(2,4) + '/' + v.slice(4);
+            else if (v.length > 2) v = v.slice(0,2) + '/' + v.slice(2);
+            e.target.value = v;
+        });
+
+        function avatarFromName(name) {
+            const safeName = (name || "U").trim();
+            return safeName ? safeName.charAt(0).toUpperCase() : "U";
+        }
+
+        function renderAvatar(name, avatarUrl) {
+            avatarInitial.textContent = avatarFromName(name);
+            const resolvedUrl = (avatarUrl || "").trim();
+            currentAvatarUrl = resolvedUrl;
+
+            if (resolvedUrl) {
+                avatarImage.src = resolvedUrl;
+                avatarImage.classList.remove("hidden");
+                avatarInitial.classList.add("hidden");
+                avatarImage.onerror = () => {
+                    avatarImage.classList.add("hidden");
+                    avatarImage.removeAttribute("src");
+                    avatarInitial.classList.remove("hidden");
+                };
+                return;
+            }
+
+            avatarImage.classList.add("hidden");
+            avatarImage.removeAttribute("src");
+            avatarInitial.classList.remove("hidden");
+        }
+
+        function fillProfileView(data) {
+            document.getElementById("fullname").value = data.fullname || "";
+            document.getElementById("email").value = data.email || "";
+            document.getElementById("phone").value = data.phone || "";
+            // Convert YYYY-MM-DD → DD/MM/YYYY for display
+            document.getElementById("birth_date").value = data.birth_date
+                ? (function(d){ const p=d.split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : d; })(data.birth_date)
+                : "";
+            document.getElementById("address").value = data.address || "";
+            document.getElementById("bio").value = data.bio || "";
+
+            document.getElementById("profileName").textContent = data.fullname || "Người dùng";
+            document.getElementById("profileEmail").textContent = data.email || "email@example.com";
+            document.getElementById("profilePhone").textContent = data.phone || "Chưa cập nhật số điện thoại";
+            document.getElementById("profileBirth").textContent = data.birth_date
+                ? (function(d){ const p=d.split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : d; })(data.birth_date)
+                : "Chưa cập nhật ngày sinh";
+            document.getElementById("profileAddress").textContent = data.address || "Chưa cập nhật địa chỉ";
+            renderAvatar(data.fullname, data.avatar_url || "");
+
+            // Show/hide Google avatar button
+            googleAvatarUrl = (data.google_avatar_url || "").trim();
+            if (googleAvatarUrl && googleAvatarUrl !== (data.avatar_url || "").trim()) {
+                useGoogleAvatarBtn.classList.remove("hidden");
+            } else {
+                useGoogleAvatarBtn.classList.add("hidden");
+            }
+        }
+
+        async function loadProfile() {
+            try {
+                const response = await fetch("/api/profile");
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    window.location.href = "/login";
+                    return;
+                }
+
+                fillProfileView(result.data);
+                sessionStorage.setItem("fullname", result.data.fullname || "");
+                sessionStorage.setItem("email", result.data.email || "");
+                sessionStorage.setItem("avatar_url", result.data.avatar_url || "");
+            } catch (error) {
+                setStatus("Không thể tải hồ sơ. Vui lòng thử lại.", true);
+            }
+        }
+
+        changeAvatarBtn.addEventListener("click", () => {
+            avatarInput.click();
+        });
+
+        useGoogleAvatarBtn.addEventListener("click", async () => {
+            useGoogleAvatarBtn.disabled = true;
+            setStatus("Đang chuyển sang ảnh Google...");
+            try {
+                const response = await fetch("/api/profile/avatar/google", {
+                    method: "POST",
+                    credentials: "same-origin",
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    setStatus(result.error || "Không thể dùng ảnh Google.", true);
+                    return;
+                }
+                const fullname = document.getElementById("fullname").value.trim() || "Người dùng";
+                const newUrl = (result.data && result.data.avatar_url) || "";
+                renderAvatar(fullname, newUrl);
+                sessionStorage.setItem("avatar_url", newUrl);
+                currentAvatarUrl = newUrl;
+                useGoogleAvatarBtn.classList.add("hidden");
+                setStatus("Đã chuyển sang ảnh Google thành công.");
+            } catch (error) {
+                setStatus("Lỗi kết nối khi chuyển ảnh Google.", true);
+            } finally {
+                useGoogleAvatarBtn.disabled = false;
+            }
+        });
+
+        avatarInput.addEventListener("change", async () => {
+            const file = avatarInput.files && avatarInput.files[0];
+            if (!file) return;
+
+            if (file.size > 10 * 1024 * 1024) {
+                setStatus("Ảnh quá lớn. Tối đa 10MB.", true);
+                avatarInput.value = "";
+                return;
+            }
+
+            changeAvatarBtn.disabled = true;
+            setStatus("Đang tải avatar...");
+
+            try {
+                const formData = new FormData();
+                formData.append("avatar", file);
+
+                const response = await fetch("/api/profile/avatar", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    body: formData,
+                });
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    setStatus(result.error || "Không thể cập nhật avatar.", true);
+                    return;
+                }
+
+                const fullname = document.getElementById("fullname").value.trim() || "Người dùng";
+                const newAvatarUrl = (result.data && result.data.avatar_url) ? result.data.avatar_url : "";
+                renderAvatar(fullname, newAvatarUrl);
+                sessionStorage.setItem("avatar_url", newAvatarUrl);
+                setStatus("Đã cập nhật avatar thành công.");
+            } catch (error) {
+                setStatus("Lỗi kết nối khi tải avatar.", true);
+            } finally {
+                changeAvatarBtn.disabled = false;
+                avatarInput.value = "";
+            }
+        });
+
+        profileForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            saveBtn.disabled = true;
+            setStatus("Đang lưu thay đổi...");
+
+            const payload = {
+                fullname: document.getElementById("fullname").value.trim(),
+                phone: document.getElementById("phone").value.trim(),
+                // Convert DD/MM/YYYY → YYYY-MM-DD for backend
+                birth_date: (function(v){ const p=v.split('/'); return p.length===3 ? p[2]+'-'+p[1]+'-'+p[0] : v; })(document.getElementById("birth_date").value.trim()),
+                address: document.getElementById("address").value.trim(),
+                bio: document.getElementById("bio").value.trim()
+            };
+
+            try {
+                const response = await fetch("/api/profile", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    setStatus(result.error || "Lưu hồ sơ thất bại.", true);
+                    saveBtn.disabled = false;
+                    return;
+                }
+
+                fillProfileView({ ...payload, email: document.getElementById("email").value, avatar_url: currentAvatarUrl });
+                sessionStorage.setItem("fullname", payload.fullname);
+                sessionStorage.setItem("avatar_url", currentAvatarUrl || "");
+                setStatus("Cập nhật hồ sơ thành công.");
+            } catch (error) {
+                setStatus("Lỗi kết nối máy chủ.", true);
+            }
+
+            saveBtn.disabled = false;
+            lucide.createIcons();
+        });
+
+        logoutBtn.addEventListener("click", async () => {
+            try {
+                await fetch("/api/logout", { method: "POST" });
+            } finally {
+                sessionStorage.clear();
+                window.location.href = "/login";
+            }
+        });
+
+        const savedTheme = localStorage.getItem("theme");
+        if (savedTheme === "dark" || (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+            document.documentElement.classList.add("dark");
+        }
+
+        themeToggle.addEventListener("click", () => {
+            document.documentElement.classList.toggle("dark");
+            localStorage.setItem("theme", document.documentElement.classList.contains("dark") ? "dark" : "light");
+            lucide.createIcons();
+        });
+
+        loadProfile();
+        lucide.createIcons();
+    </script>
+</body>
+</html>
