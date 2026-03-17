@@ -116,10 +116,10 @@
                 <p id="google-register-hint" class="text-center text-xs mt-2 hidden"></p>
 
                 <p id="register-message" class="hidden text-sm rounded-xl px-4 py-3"></p>
-                <div id="reg-dev-otp-box" class="hidden mt-3 rounded-xl border border-amber-400/35 bg-amber-500/10 px-4 py-3">
-                    <p class="text-xs text-amber-200 font-semibold">OTP fallback (môi trường local/dev)</p>
-                    <p class="text-2xl tracking-[0.25em] font-bold text-amber-100 mt-1" id="reg-dev-otp-value">------</p>
-                    <p class="text-[11px] text-amber-200/90 mt-1">Dùng mã này để xác thực OTP khi email chưa gửi được.</p>
+                <div id="reg-dev-otp-box" class="hidden mt-3 rounded-xl border border-amber-400/60 bg-amber-500/15 px-4 py-3">
+                    <p class="text-xs text-amber-300 font-bold uppercase tracking-wider">⚠️ Email chưa cấu hình — Mã OTP của bạn:</p>
+                    <p class="text-3xl tracking-[0.35em] font-bold text-amber-100 mt-2 select-all" id="reg-dev-otp-value">------</p>
+                    <p class="text-[12px] text-amber-200 mt-2">→ Mã trên đã được điền sẵn vào ô bên dưới. Nhấn <strong>Xác nhận đăng ký</strong> là xong.</p>
                 </div>
                 <p class="text-center text-sm text-slate-400 mt-4">
                     Đã có tài khoản?
@@ -482,12 +482,15 @@
                 document.getElementById('register-verify-otp-btn').classList.remove('hidden');
                 document.getElementById('register-send-otp-btn').textContent = 'Gửi lại OTP đăng ký';
 
-                // Hiển thị OTP khi SMTP lỗi (dev-fallback)
+                // Hiển thị và tự điền OTP khi SMTP lỗi (dev-fallback)
                 const devOtpBox = document.getElementById('reg-dev-otp-box');
                 const devOtpVal = document.getElementById('reg-dev-otp-value');
                 if (data.devOtp && devOtpBox && devOtpVal) {
                     devOtpVal.textContent = data.devOtp;
                     devOtpBox.classList.remove('hidden');
+                    // Tự điền vào ô OTP để user chỉ cần bấm xác nhận
+                    const otpInput = document.getElementById('reg-otp');
+                    if (otpInput) otpInput.value = data.devOtp;
                 } else if (devOtpBox) {
                     devOtpBox.classList.add('hidden');
                 }
