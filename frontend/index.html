@@ -2306,6 +2306,32 @@ function normalizeOcrLine(rawLine) {
     let line = (rawLine || '').replace(/\s+/g, ' ').trim();
     if (!line) return '';
 
+    // --- Fix spaced thousands: "400. 000" -> "400.000" ---
+    line = line.replace(/(\d+)\.\s+(\d{3})\b/g, '$1.$2');
+
+    // --- Fix Vietnamese OCR character errors ---
+    line = line.replace(/\bUéng\b/g, 'Uống');
+    line = line.replace(/\buéng\b/g, 'uống');
+    line = line.replace(/\bUêng\b/g, 'Uống');
+    line = line.replace(/\buêng\b/g, 'uống');
+    line = line.replace(/\bVién\b/g, 'Viên');
+    line = line.replace(/\bvién\b/g, 'viên');
+    line = line.replace(/\bViẻn\b/g, 'Viên');
+    line = line.replace(/\bviẻn\b/g, 'viên');
+    line = line.replace(/\bChiéu\b/g, 'Chiều');
+    line = line.replace(/\bchiéu\b/g, 'chiều');
+    line = line.replace(/\bTrua\b/g, 'Trưa');
+    line = line.replace(/\btrua\b/g, 'trưa');
+    line = line.replace(/\bSang\b(?=\s*\d)/g, 'Sáng');
+    line = line.replace(/\blan\/ngay\b/gi, 'lần/ngày');
+    line = line.replace(/\blan\/ngày\b/gi, 'lần/ngày');
+    line = line.replace(/\blần\/ngay\b/gi, 'lần/ngày');
+
+    // --- Clean OCR noise ---
+    line = line.replace(/\s*-\s*\d+\s*-\.?/g, '');  // "- 9 -." noise
+    line = line.replace(/\s*>>\s*/g, ' ');  // ">>" artifacts
+    line = line.replace(/\s*<<\s*/g, ' ');  // "<<" artifacts
+
     const replacements = [
         [/\bThan nhiệt\b/gi, 'Thân nhiệt'],
         [/\bThan nhiet\b/gi, 'Thân nhiệt'],
@@ -2384,6 +2410,11 @@ function tryParseMedicineRow(line) {
     const match = line.match(/^(\d+)\s*[\/.\-)]+\s*(.+)$/);
     if (!match) return null;
 
+    // Only treat as medicine index if number is reasonable (1-50)
+    // Large numbers like 400, 500 are dosage values (mg, UI), not drug indices
+    const indexNum = parseInt(match[1], 10);
+    if (indexNum > 50) return null;
+
     let rest = match[2].trim();
     let quantity = '';
     let inlineDosage = '';
@@ -2403,7 +2434,7 @@ function tryParseMedicineRow(line) {
         }
 
         // Extract quantity from end of remaining name part
-        const quantityMatch = rest.match(/(\d+\s*(Viên|Viện|Ống|Chai|Tuýp|Tuyp|Gói|Goi|ml|mg|UI))$/i);
+        const quantityMatch = rest.match(/(\d+\s*(Viên|Viện|Ống|Chai|Tuýp|Tuyp|Gói|Goi|ml|mg|UI|Giọt)|(Viên|Viện|Ống|Chai|Tuýp|Tuyp|Gói|Goi|Giọt)\s*\d+)$/i);
         if (quantityMatch) {
             quantity = quantityMatch[1].trim();
             rest = rest.slice(0, quantityMatch.index).trim();
@@ -2560,7 +2591,15 @@ function extractOcrSectionsForView(formattedText) {
     let inMedicine = false;
     for (const line of expandedLines) {
         const normalized = line.toLowerCase();
-        const medicineIndexPattern = /^(\d+\s*[\/\.)\-]|stt\b)/i;
+        const medicineIndexPattern = /^(\d{1,2}\s*[\/\.)\-]|stt\b)/i;
+
+        // Skip lines starting with large numbers (400., 500.) - these are dosage info, not medicine indices
+        const isMedicineIndex = (ln) => {
+            if (!medicineIndexPattern.test(ln)) return false;
+            const numMatch = ln.match(/^(\d+)/);
+            if (numMatch && parseInt(numMatch[1], 10) > 50) return false;
+            return true;
+        };
 
         if (/(họ\s*tên|ho\s*ten|h[oọ]\s*t[eê]n|tên\s*bệnh\s*nhân)/i.test(line)) {
             const matchName = line.match(/(?:họ\s*tên|ho\s*ten|h[oọ]\s*t[eê]n|tên\s*bệnh\s*nhân)\s*[:\-]?\s*(.+?)(?=\s+(?:NS|Năm\s*sinh|Tuổi|Giới\s*tính|Địa\s*chỉ|Điện\s*thoại|Sinh\s*hiệu|Thân\s*nhiệt|Huyết\s*áp|Cân\s*nặng|Chẩn\s*đoán|Điều\s*trị)\s*:?|$)/i);
@@ -2592,11 +2631,11 @@ function extractOcrSectionsForView(formattedText) {
             sections.instructions.push(line);
             continue;
         }
-        if (inMedicine && medicineIndexPattern.test(line)) {
+        if (inMedicine && isMedicineIndex(line)) {
             sections.medicines.push(line);
             continue;
         }
-        if (medicineIndexPattern.test(line) && /(viên|ống|chai|mg|ml|ui|caps|tab|thuốc|ham luong|hàm lượng|sáng|trưa|chiều|tối|lần\s*\/\s*ngày)/i.test(normalized)) {
+        if (isMedicineIndex(line) && /(viên|ống|chai|mg|ml|ui|caps|tab|thuốc|ham luong|hàm lượng|sáng|trưa|chiều|tối|lần\s*\/\s*ngày)/i.test(normalized)) {
             sections.medicines.push(line);
             continue;
         }
@@ -2688,7 +2727,7 @@ function parseMedicineGuideItems(formattedText) {
     let currentItem = null;
 
     const medPattern = /^(\d+)\s*[\/\.)\-]+\s*(.+)$/i;
-    const quantityTailPattern = /(\d+\s*(Viên|Ống|Chai|Tuýp|Tuyp|Gói|Goi|ml|mg|UI|Giọt))$/i;
+    const quantityTailPattern = /(\d+\s*(Viên|Viện|Ống|Chai|Tuýp|Tuyp|Gói|Goi|ml|mg|UI|Giọt)|(Viên|Viện|Ống|Chai|Tuýp|Tuyp|Gói|Goi|Giọt)\s*\d+)$/i;
 
     const looksLikeDosage = (line) => {
         const normalized = (line || '').toLowerCase();
@@ -2704,6 +2743,15 @@ function parseMedicineGuideItems(formattedText) {
 
         const medMatch = line.match(medPattern);
         if (medMatch) {
+            // Only treat as medicine index if number is reasonable (1-50)
+            const medIndexNum = parseInt(medMatch[1], 10);
+            if (medIndexNum > 50) {
+                // Large number — this is part of drug info, not an index
+                if (currentItem) {
+                    currentItem.name = `${currentItem.name} ${line}`.trim();
+                }
+                continue;
+            }
             let namePart = medMatch[2].trim();
             let quantityPart = '';
 
@@ -2746,6 +2794,37 @@ function parseMedicineGuideItems(formattedText) {
         if (/^(\d+\/\d+|\/\d+|\d+\/|;|,)/.test(line) && currentItem.dosage.length > 0) {
             const lastIndex = currentItem.dosage.length - 1;
             currentItem.dosage[lastIndex] = `${currentItem.dosage[lastIndex]} ${line}`.replace(/\s{2,}/g, ' ').trim();
+            continue;
+        }
+
+        // Detect un-numbered drug lines by common drug-related patterns
+        // e.g. "Penicilin 400.000 UI" or "Paracetamol 500 mg (Mypara) Viên 10"
+        const drugNamePattern = /\b(\d[\d.]*\s*(mg|ml|UI|mcg|g)\b|\b(Viên|Ống|Chai|Tuýp|Gói|Giọt)\b)/i;
+        if (!looksLikeDosage(line) && drugNamePattern.test(line)) {
+            let namePart = line;
+            let quantityPart = '';
+            let inlineDosagePart = '';
+
+            const dosageKw = namePart.match(/\b(Sáng|Sang|Trưa|Trua|Chiều|Chieu|Tối|Toi|Uống|Uong|Thoa|Bôi|Boi)\b/i);
+            if (dosageKw) {
+                inlineDosagePart = namePart.slice(dosageKw.index).trim();
+                namePart = namePart.slice(0, dosageKw.index).trim();
+            }
+            const qtyMatch = namePart.match(quantityTailPattern);
+            if (qtyMatch) {
+                quantityPart = qtyMatch[1].trim();
+                namePart = namePart.slice(0, qtyMatch.index).trim();
+            }
+
+            const autoIndex = String(items.length + 1);
+            currentItem = {
+                index: autoIndex,
+                name: namePart,
+                quantity: quantityPart,
+                dosage: inlineDosagePart ? [inlineDosagePart] : []
+            };
+            items.push(currentItem);
+            continue;
         }
     }
 

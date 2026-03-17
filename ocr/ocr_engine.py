@@ -165,6 +165,41 @@ def _post_process_text(text):
     for old, new in replacements.items():
         text = text.replace(old, new)
 
+    # --- Fix Vietnamese OCR character errors ---
+    vi_ocr_fixes = [
+        (r"\bUéng\b", "Uống"),
+        (r"\buéng\b", "uống"),
+        (r"\bUêng\b", "Uống"),
+        (r"\buêng\b", "uống"),
+        (r"\bVién\b", "Viên"),
+        (r"\bvién\b", "viên"),
+        (r"\bViẻn\b", "Viên"),
+        (r"\bviẻn\b", "viên"),
+        (r"\bSang\b(?=\s*\d)", "Sáng"),
+        (r"\bChiéu\b", "Chiều"),
+        (r"\bchiéu\b", "chiều"),
+        (r"\bTrua\b", "Trưa"),
+        (r"\btrua\b", "trưa"),
+        (r"\bTôi\b(?=\s*\d)", "Tối"),
+        (r"\bNgay\b(?=\s*\d)", "Ngày"),
+        (r"\bngay\b(?=\s*\d)", "ngày"),
+        (r"\blan/ngay\b", "lần/ngày"),
+        (r"\blan/ngày\b", "lần/ngày"),
+        (r"\blần/ngay\b", "lần/ngày"),
+        (r"\bduoi\s+dang\b", "dưới dạng"),
+        (r"\bdưoi\s+dạng\b", "dưới dạng"),
+    ]
+    for pattern, replacement in vi_ocr_fixes:
+        text = re.sub(pattern, replacement, text)
+
+    # --- Fix spaced thousands: "400. 000" -> "400.000" ---
+    text = re.sub(r"(\d+)\.\s+(\d{3})\b", r"\1.\2", text)
+
+    # --- Clean OCR noise patterns ---
+    text = re.sub(r"\s*-\s*\d+\s*-\.?", "", text)
+    text = re.sub(r"\s*>>\s*", " ", text)
+    text = re.sub(r"\s*<<\s*", " ", text)
+
     text = re.sub(r"\bmg\s*/\s*vien\b", "mg/viên", text, flags=re.IGNORECASE)
     text = re.sub(r"\b(\d+)\s*([mM][gG]|[mM][lL]|[uU][iI])\b", r"\1 \2", text)
     text = re.sub(r"\b([xX])\s*(\d+)\s*(lan|lần)\s*/\s*(ngay|ngày)\b", r"x \2 lần/ngày", text, flags=re.IGNORECASE)
