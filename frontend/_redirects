@@ -1,0 +1,20 @@
+# Fix: redirect /frontend/brand/* → /brand/* (legacy links in HTML)
+/frontend/brand/*  /brand/:splat  301
+
+# Fix: redirect /frontend/* → /* (any other /frontend/ prefix)
+/frontend/*  /:splat  301
+
+# Page routes (clean URLs)
+/login          /login.html          200
+/register       /register.html       200
+/forgot-password  /forgot_password.html  200
+/reset-password   /reset_password.html   200
+/profile        /profile.html        200
+/history        /history.html        200
+/stats          /stats.html          200
+
+# Proxy API to Render backend
+/api/*  https://prescription-ocr-project-2.onrender.com/api/:splat  200
+
+# Proxy uploads to Render backend
+/uploads/*  https://prescription-ocr-project-2.onrender.com/uploads/:splat  200

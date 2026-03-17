@@ -1,59 +1,51 @@
-# ============================================================
-# netlify.toml - Cấu hình Netlify cho Prescription OCR Project
-# ============================================================
-# HƯỚNG DẪN:
-# 1. Deploy Flask backend lên Render.com (dùng render.yaml đã có sẵn)
-# 2. Sau khi Render cấp URL (vd: https://prescription-ocr-backend.onrender.com),
-#    thay "prescription-ocr-backend" bên dưới bằng URL thật của bạn
-# 3. Commit & push lại để Netlify tự động redeploy
-# ============================================================
-
 [build]
-  # Dùng thư mục gốc làm publish directory để các path như
-  # /frontend/brand/favicon.svg hoạt động đúng
-  publish = "."
-  # Không cần build command vì đây là static HTML
-  command = ""
+  publish = "frontend"
 
-# ─── Trang chính ────────────────────────────────────────────
+# ─── Fix path /frontend/* → /* (các link trong HTML dùng prefix /frontend/) ──
 [[redirects]]
-  from = "/"
-  to = "/frontend/index.html"
-  status = 200
+  from = "/frontend/brand/*"
+  to = "/brand/:splat"
+  status = 301
 
+[[redirects]]
+  from = "/frontend/*"
+  to = "/:splat"
+  status = 301
+
+# ─── Page routes ────────────────────────────────────────────
 [[redirects]]
   from = "/login"
-  to = "/frontend/login.html"
+  to = "/login.html"
   status = 200
 
 [[redirects]]
   from = "/register"
-  to = "/frontend/register.html"
+  to = "/register.html"
   status = 200
 
 [[redirects]]
   from = "/forgot-password"
-  to = "/frontend/forgot_password.html"
+  to = "/forgot_password.html"
   status = 200
 
 [[redirects]]
   from = "/reset-password"
-  to = "/frontend/reset_password.html"
+  to = "/reset_password.html"
   status = 200
 
 [[redirects]]
   from = "/profile"
-  to = "/frontend/profile.html"
+  to = "/profile.html"
   status = 200
 
 [[redirects]]
   from = "/history"
-  to = "/frontend/history.html"
+  to = "/history.html"
   status = 200
 
 [[redirects]]
   from = "/stats"
-  to = "/frontend/stats.html"
+  to = "/stats.html"
   status = 200
 
 # ─── Proxy API sang Flask backend (Render) ──────────────────
