@@ -57,18 +57,16 @@
   status = 200
 
 # ─── Proxy API sang Flask backend (Render) ──────────────────
-# ⚠️  QUAN TRỌNG: Thay prescription-ocr-backend bằng URL Render thật của bạn
-#     Ví dụ: https://prescription-ocr-backend.onrender.com
 [[redirects]]
   from = "/api/*"
-  to = "https://prescription-ocr-backend.onrender.com/api/:splat"
+  to = "https://prescription-ocr-project-2.onrender.com/api/:splat"
   status = 200
   force = true
 
 # ─── Proxy uploads (avatar, ...) sang Flask backend ─────────
 [[redirects]]
   from = "/uploads/*"
-  to = "https://prescription-ocr-backend.onrender.com/uploads/:splat"
+  to = "https://prescription-ocr-project-2.onrender.com/uploads/:splat"
   status = 200
   force = true
 
