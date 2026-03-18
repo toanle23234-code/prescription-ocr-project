@@ -4,6 +4,10 @@
 
 ---
 
+## Đường link demo đến trang web 
+https://prescription-ocr-project.onrender.com/ 
+
+
 ## Tính năng chính
 
 - **OCR đơn thuốc** — Tải lên ảnh đơn lẻ hoặc hàng loạt; hệ thống xử lý đa biến thể ảnh và chọn kết quả tốt nhất
