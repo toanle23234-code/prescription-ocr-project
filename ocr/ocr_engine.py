@@ -298,68 +298,62 @@ def _post_process_text(text):
     return text.strip()
 
 
-def _organize_prescription_sections(text):
-    """Organize prescription text into proper sections with clear separation"""
+def _format_prescription_layout(text):
+    """Format OCR text into stable prescription layout without altering meaning."""
     if not text:
         return text
-    
-    # Define section headers and their priorities
-    sections_patterns = [
-        (r"(?i)(đơn\s+thuốc|don\s+thuoc|toa\s+thuoc|prescription)", "ĐƠNTHỐC"),
-        (r"(?i)(họ\s+tên|ho\s+ten|patient\s+name|name)", "HỌTÊN"),
-        (r"(?i)(tuổi|tuoi|age)", "TUỔI"),
-        (r"(?i)(chẩn\s+đoán|chuẩn\s+đoán|chan\s+doan|diagnosis)", "CHẨNĐOÁN"),
-        (r"(?i)(huyết\s+áp|huyet\s+ap|blood\s+pressure|bp)", "HUYẾTÁP"),
-        (r"(?i)(thân\s+nhiệt|than\s+nhiet|temperature)", "THÂNHIỆT"),
-        (r"(?i)(địa\s+chỉ|dia\s+chi|address)", "ĐỊACHỈ"),
-        (r"(?i)(điện\s+thoại|dien\s+thoai|phone)", "ĐIENȚHOẠI"),
-        (r"(?i)(điều\s+trị|dieu\s+tri|treatment|liều)", "LIỄUTRỊ"),
+
+    formatted = str(text)
+
+    # Normalize common header variants first.
+    header_normalizations = [
+        (r"\bHo\s*ten\b", "Họ tên"),
+        (r"\bHọ\s*ten\b", "Họ tên"),
+        (r"\bDia\s*chi\b", "Địa chỉ"),
+        (r"\bDien\s*thoai\b", "Điện thoại"),
+        (r"\bChan\s*doan\b", "Chẩn đoán"),
+        (r"\bDieu\s*tri\b", "Điều trị"),
+        (r"\bHuyet\s*ap\b", "Huyết áp"),
+        (r"\bThan\s*nhiet\b", "Thân nhiệt"),
+        (r"\bCan\s*nang\b", "Cân nặng"),
+        (r"\bDon\s*thuoc\b", "Đơn thuốc"),
     ]
-    
-    lines = text.split('\n')
-    organized = []
-    current_section = "KHÁC"
-    current_content = []
-    
-    for line in lines:
-        line_stripped = line.strip()
-        if not line_stripped:
-            continue
-        
-        # Check if line is a section header
-        section_found = False
-        for pattern, section_name in sections_patterns:
-            if re.search(pattern, line_stripped):
-                # Save previous section if exists
-                if current_content and current_section != "KHÁC":
-                    organized.append(f"{current_section}: {' '.join(current_content)}")
-                    current_content = []
-                
-                # Check if line has value after header
-                match = re.search(r"[:\s](.+)$", line_stripped)
-                if match:
-                    value = match.group(1).strip()
-                    if value:
-                        organized.append(f"{section_name}: {value}")
-                    else:
-                        current_section = section_name
-                else:
-                    current_section = section_name
-                
-                section_found = True
-                break
-        
-        if not section_found:
-            # This is content line, not a header
-            if line_stripped:
-                current_content.append(line_stripped)
-    
-    # Save last section if has content
-    if current_content and current_section != "KHÁC":
-        organized.append(f"{current_section}: {' '.join(current_content)}")
-    
-    # Join with proper formatting
-    return '\n'.join(organized) if organized else text
+    for pattern, replacement in header_normalizations:
+        formatted = re.sub(pattern, replacement, formatted, flags=re.IGNORECASE)
+
+    # Ensure one clear line per key field in the sample prescription format.
+    header_tokens = [
+        r"Họ\s*tên\s*:",
+        r"NS\s*:",
+        r"Địa\s*chỉ\s*:",
+        r"Điện\s*thoại\s*:",
+        r"Sinh\s*hiệu\s*:",
+        r"Thân\s*nhiệt\s*:",
+        r"Huyết\s*áp\s*:",
+        r"Cân\s*nặng\s*:",
+        r"Chẩn\s*đoán\s*:",
+        r"Điều\s*trị\s*:",
+    ]
+    for token in header_tokens:
+        formatted = re.sub(rf"\s+(?={token})", "\n", formatted, flags=re.IGNORECASE)
+
+    # Split medicine rows like "1/ ..." onto new lines.
+    formatted = re.sub(r"\s+(?=\d+\s*/)", "\n", formatted)
+
+    # Split quantity and dosage if OCR merged them in one line.
+    formatted = re.sub(
+        r"\b(Viên|Ống|Tuýp|Chai|Vỉ)\b\s+(?=(Sáng|Trưa|Chiều|Tối|Thoa|Uống|Ngày))",
+        r"\1\n",
+        formatted,
+        flags=re.IGNORECASE,
+    )
+
+    # Keep output clean and stable.
+    formatted = re.sub(r"[ \t]+", " ", formatted)
+    formatted = re.sub(r"\n{2,}", "\n", formatted)
+    formatted = re.sub(r" +\n", "\n", formatted)
+    formatted = re.sub(r"\n +", "\n", formatted)
+    return formatted.strip()
 
 
 def _extract_with_confidence(image, lang, config):
@@ -460,7 +454,7 @@ def extract_text(image_path):
                     logger.info("OCR variant=%s psm=%d: score=%.1f, len=%d", variant_name, psm_mode, score, len(text or ''))
                     
                     if text and score >= 5:  # Lower threshold to accept more text
-                        return _organize_prescription_sections(text)
+                        return _format_prescription_layout(text)
                     
                     if text and score > best_score:
                         best_score = score
@@ -483,7 +477,7 @@ def extract_text(image_path):
                                 logger.info("OCR crop variant=%s psm=%d: score=%.1f, len=%d", variant_name, psm_mode, score, len(text or ''))
                                 
                                 if text and score >= 5:
-                                    return _organize_prescription_sections(text)
+                                    return _format_prescription_layout(text)
                                 
                                 if text and score > best_score:
                                     best_score = score
@@ -504,7 +498,7 @@ def extract_text(image_path):
                     raw = _post_process_text(raw)
                     if raw and len(raw.strip()) >= 5:
                         logger.info("OCR gray psm=%d: len=%d", psm_mode, len(raw))
-                        return _organize_prescription_sections(raw)
+                        return _format_prescription_layout(raw)
                 except Exception as e:
                     logger.warning("OCR gray psm=%d error: %s", psm_mode, e)
         except Exception as e:
@@ -513,7 +507,7 @@ def extract_text(image_path):
         # Return best result found, even if score is low
         if best_text:
             logger.info("OCR: returning best result with score=%.1f", best_score)
-            return _organize_prescription_sections(best_text)
+            return _format_prescription_layout(best_text)
 
         return "Không thể trích xuất văn bản rõ ràng từ ảnh. Hãy thử ảnh rõ hơn hoặc chụp thẳng góc."
     except pytesseract.TesseractNotFoundError:
