@@ -150,13 +150,9 @@ def preprocess_variants(img):
     bordered = cv2.copyMakeBorder(sharp, 16, 16, 16, 16, cv2.BORDER_REPLICATE)
 
     return [
-        ("gray", gray),
-        ("clahe", clahe),
-        ("sharp", sharp),
         ("otsu", otsu),
-        ("adaptive_mean", adaptive_mean),
         ("adaptive_gauss", adaptive_gauss),
-        ("morph_close", morph_close),
+        ("clahe", clahe),
         ("bordered", bordered),
     ]
 
