@@ -9,7 +9,7 @@ https://prescription-ocr-project.onrender.com/
 
 **Ảnh ví dụ:**
 
-![Ảnh ví dụ](docs/images/prescription-example.png)
+![Ảnh ví dụ](docs/images/prescription-real-example.png)
 
 
 
