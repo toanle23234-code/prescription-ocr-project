@@ -116,12 +116,37 @@ def _auto_crop_document(img):
 
 
 def preprocess_variants(img):
+    """Generate multiple preprocessing variants for OCR testing"""
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray = _resize_for_ocr(gray)
-    # Bỏ deskew và bilateral filter — quá chậm trên 0.1 vCPU
+    
+    variants = []
+    
+    # Variant 1: CLAHE + Otsu (original)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(gray)
     otsu = cv2.threshold(clahe, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-    return [("otsu", otsu)]
+    variants.append(("clahe_otsu", otsu))
+    
+    # Variant 2: More aggressive CLAHE
+    clahe_strong = cv2.createCLAHE(clipLimit=3.5, tileGridSize=(6, 6)).apply(gray)
+    otsu_strong = cv2.threshold(clahe_strong, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+    variants.append(("clahe_strong_otsu", otsu_strong))
+    
+    # Variant 3: Simple Otsu without CLAHE
+    _, otsu_simple = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    variants.append(("simple_otsu", otsu_simple))
+    
+    # Variant 4: Adaptive threshold
+    adaptive = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                      cv2.THRESH_BINARY, 11, 2)
+    variants.append(("adaptive", adaptive))
+    
+    # Variant 5: Dialate + Erode to connect text
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    dilated = cv2.dilate(otsu, kernel, iterations=1)
+    variants.append(("dilated", dilated))
+    
+    return variants
 
 
 def _post_process_text(text):
@@ -311,12 +336,13 @@ def _score_ocr_text(text, avg_conf):
 
     repeated_noise_penalty = 0
     if re.search(r"(.)\1{4,}", text):
-        repeated_noise_penalty += 6
-    if noisy_symbol_count > max(3, len(text) * 0.03):
-        repeated_noise_penalty += 8
+        repeated_noise_penalty += 3  # Reduced penalty
+    if noisy_symbol_count > max(3, len(text) * 0.05):  # More lenient
+        repeated_noise_penalty += 4
 
-    conf_score = avg_conf * 0.55
-    quality_score = alnum_ratio * 26 + vi_ratio * 8 + min(line_count, 18) * 1.1 + min(keyword_hits, 10) * 2.2
+    conf_score = avg_conf * 0.40  # Lower confidence weight
+    # More aggressive scoring - accept more text
+    quality_score = alnum_ratio * 15 + vi_ratio * 5 + min(line_count, 15) * 0.8 + min(keyword_hits, 10) * 1.5
     score = conf_score + quality_score - repeated_noise_penalty
     return float(score)
 
@@ -347,56 +373,88 @@ def extract_text(image_path):
     try:
         languages = _build_language_list()
         lang = languages[0] if languages else "vie+eng"
-        config = r"--oem 1 --psm 11 -c preserve_interword_spaces=1 -c user_defined_dpi=300"
-        text = None
         logger.info("OCR: lang=%s, languages_available=%s", lang, languages)
 
-        # Lần 1: Chỉ 1 lần Tesseract duy nhất trên ảnh gốc + OTSU
+        # Try different PSM modes
+        psm_configs = [
+            (11, r"--oem 1 --psm 11 -c preserve_interword_spaces=1 -c user_defined_dpi=300"),
+            (6, r"--oem 1 --psm 6 -c preserve_interword_spaces=1 -c user_defined_dpi=300"),
+            (3, r"--oem 1 --psm 3 -c preserve_interword_spaces=1 -c user_defined_dpi=300"),
+        ]
+        
+        best_text = None
+        best_score = 0
+
+        # Phase 1: Try all preprocessing variants with PSM 11
         variants = preprocess_variants(img)
-        _, processed = variants[0]
-        try:
-            text, score = _extract_with_confidence(processed, lang=lang, config=config)
-            logger.info("OCR pass1: score=%.1f, len=%d, preview=%.100s", score, len(text or ''), (text or '')[:100])
-            if text and score >= 10:
-                return text
-        except RuntimeError as e:
-            logger.warning("OCR pass1 RuntimeError: %s", e)
+        logger.info("OCR: trying %d preprocessing variants", len(variants))
+        
+        for variant_name, processed in variants:
+            for psm_mode, config in psm_configs[:1]:  # Try PSM 11 with each variant first
+                try:
+                    text, score = _extract_with_confidence(processed, lang=lang, config=config)
+                    logger.info("OCR variant=%s psm=%d: score=%.1f, len=%d", variant_name, psm_mode, score, len(text or ''))
+                    
+                    if text and score >= 5:  # Lower threshold to accept more text
+                        return text
+                    
+                    if text and score > best_score:
+                        best_score = score
+                        best_text = text
+                except RuntimeError as e:
+                    logger.warning("OCR variant=%s psm=%d error: %s", variant_name, psm_mode, e)
 
-        # Lần 2 (fallback): Thử crop document rồi OCR
-        try:
-            cropped = _auto_crop_document(img)
-            if cropped.shape[:2] != img.shape[:2]:
-                variants_c = preprocess_variants(cropped)
-                _, proc_c = variants_c[0]
-                text2, score2 = _extract_with_confidence(proc_c, lang=lang, config=config)
-                logger.info("OCR pass2: score=%.1f, len=%d", score2, len(text2 or ''))
-                if text2 and score2 >= 10:
-                    return text2
-                if text2 and (not text or len(text2) > len(text)):
-                    text = text2
-        except (RuntimeError, Exception) as e:
-            logger.warning("OCR pass2 error: %s", e)
+        # Phase 2: If no good result yet, try crop + variants with multiple PSM
+        if not best_text or best_score < 5:
+            try:
+                cropped = _auto_crop_document(img)
+                if cropped.shape[:2] != img.shape[:2]:
+                    logger.info("OCR: document cropped, new shape=%s", cropped.shape)
+                    variants_c = preprocess_variants(cropped)
+                    
+                    for variant_name, processed in variants_c:
+                        for psm_mode, config in psm_configs:
+                            try:
+                                text, score = _extract_with_confidence(processed, lang=lang, config=config)
+                                logger.info("OCR crop variant=%s psm=%d: score=%.1f, len=%d", variant_name, psm_mode, score, len(text or ''))
+                                
+                                if text and score >= 5:
+                                    return text
+                                
+                                if text and score > best_score:
+                                    best_score = score
+                                    best_text = text
+                            except RuntimeError as e:
+                                logger.warning("OCR crop variant=%s psm=%d error: %s", variant_name, psm_mode, e)
+            except Exception as e:
+                logger.warning("OCR crop phase error: %s", e)
 
-        # Lần 3 (fallback cuối): OCR trực tiếp ảnh grayscale không xử lý
+        # Phase 3: Direct gray OCR with different PSM
         try:
             gray_fb = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             gray_fb = _resize_for_ocr(gray_fb)
-            raw = pytesseract.image_to_string(gray_fb, lang=lang,
-                config=r"--oem 1 --psm 11 -c preserve_interword_spaces=1 -c user_defined_dpi=300",
-                timeout=45)
-            raw = _post_process_text(raw)
-            if raw and len(raw.strip()) >= 10:
-                return raw
-        except Exception:
-            pass
+            
+            for psm_mode, config in psm_configs:
+                try:
+                    raw = pytesseract.image_to_string(gray_fb, lang=lang, config=config, timeout=45)
+                    raw = _post_process_text(raw)
+                    if raw and len(raw.strip()) >= 5:
+                        logger.info("OCR gray psm=%d: len=%d", psm_mode, len(raw))
+                        return raw
+                except Exception as e:
+                    logger.warning("OCR gray psm=%d error: %s", psm_mode, e)
+        except Exception as e:
+            logger.warning("OCR gray phase error: %s", e)
 
-        # Trả về kết quả tốt nhất dù điểm thấp
-        if text:
-            return text
+        # Return best result found, even if score is low
+        if best_text:
+            logger.info("OCR: returning best result with score=%.1f", best_score)
+            return best_text
 
         return "Không thể trích xuất văn bản rõ ràng từ ảnh. Hãy thử ảnh rõ hơn hoặc chụp thẳng góc."
     except pytesseract.TesseractNotFoundError:
         return "Lỗi: Hệ thống chưa được cài đặt phần mềm Tesseract OCR!"
     except Exception as e:
+        logger.exception("OCR error: %s", e)
         return f"Đã xảy ra lỗi trong quá trình đọc ảnh: {str(e)}"
 
