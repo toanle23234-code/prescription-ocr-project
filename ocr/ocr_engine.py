@@ -215,7 +215,7 @@ def _post_process_text(text):
 
 
 def _extract_with_confidence(image, lang, config):
-    raw_text = pytesseract.image_to_string(image, lang=lang, config=config, timeout=5)
+    raw_text = pytesseract.image_to_string(image, lang=lang, config=config, timeout=20)
     text = _post_process_text(raw_text)
     score = _score_ocr_text(text, 0.0)
     return text, score
@@ -322,6 +322,18 @@ def extract_text(image_path):
 
         if best_text:
             return best_text
+
+        # Fallback: thử OCR trực tiếp trên ảnh gốc không qua preprocessing
+        try:
+            lang_fb = languages[0] if languages else "vie+eng"
+            raw = pytesseract.image_to_string(img, lang=lang_fb,
+                config=r"--oem 3 --psm 3 -c preserve_interword_spaces=1",
+                timeout=25)
+            raw = _post_process_text(raw)
+            if raw and len(raw.strip()) >= 10:
+                return raw
+        except Exception:
+            pass
 
         return "Không thể trích xuất văn bản rõ ràng từ ảnh. Hãy thử ảnh rõ hơn hoặc chụp thẳng góc."
     except pytesseract.TesseractNotFoundError:
