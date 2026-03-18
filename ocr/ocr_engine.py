@@ -246,6 +246,7 @@ def extract_text(image_path):
         languages = _build_language_list()
         lang = languages[0] if languages else "vie+eng"
         config = r"--oem 1 --psm 6 -c preserve_interword_spaces=1 -c user_defined_dpi=300"
+        text = None
 
         # Lần 1: Chỉ 1 lần Tesseract duy nhất trên ảnh gốc + OTSU
         variants = preprocess_variants(img)
@@ -266,6 +267,8 @@ def extract_text(image_path):
                 text2, score2 = _extract_with_confidence(proc_c, lang=lang, config=config)
                 if text2 and score2 >= 20:
                     return text2
+                if text2 and (not text or len(text2) > len(text)):
+                    text = text2
         except (RuntimeError, Exception):
             pass
 
