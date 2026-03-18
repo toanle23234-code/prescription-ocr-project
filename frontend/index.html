@@ -2717,7 +2717,8 @@ function extractOcrSectionsForView(formattedText) {
 
     const splitMixedFields = (line) => {
         const prepared = normalizeViewLine(line)
-            .replace(/\s+(?=(Họ tên|Tuổi|Giới tính|Địa chỉ|Điện thoại|NS|Năm sinh|Sinh hiệu|Thân nhiệt|Huyết áp|Cân nặng|Chẩn đoán|Chuẩn đoán|Điều trị)\s*:?)/gi, '\n')
+            .replace(/\s+(?=(Họ tên|Giới tính|Địa chỉ|Điện thoại|NS|Năm sinh|Sinh hiệu|Thân nhiệt|Huyết áp|Cân nặng|Chẩn đoán|Chuẩn đoán|Điều trị)\s*:?)/gi, '\n')
+            .replace(/\s+(?=(Tuổi)\s*[:\-])/gi, '\n')
             .replace(/\s+(?=(\d+\s*[\/\.)\-]))/g, '\n');
         return prepared.split('\n').map((x) => x.trim()).filter(Boolean);
     };
@@ -2741,8 +2742,8 @@ function extractOcrSectionsForView(formattedText) {
     };
 
     // OCR thường dính nhiều trường trên một dòng, cần tách cưỡng bức theo toàn văn.
-    pushAdminFieldFromWholeText('Họ tên', /(?:họ\s*tên|ho\s*ten|h[oọ]\s*t[eê]n|tên\s*bệnh\s*nhân)\s*[:\-]?\s*([^:;]+?)(?=\s+(?:NS|Năm\s*sinh|Tuổi|Giới\s*tính|Địa\s*chỉ|Điện\s*thoại|Sinh\s*hiệu|Thân\s*nhiệt|Huyết\s*áp|Cân\s*nặng|Chẩn\s*đoán|Điều\s*trị|Danh\s*mục\s*thuốc|STT)\s*:?|\s+(?:(?:\d{1,2}|[Ss])\s*(?:[\/\.)\-]|[Gg]))|$)/i);
-    pushAdminFieldFromWholeText('NS', /(?:\bNS\b|Năm\s*sinh)\s*[:\-]?\s*(.+?)(?=\s+(?:Tuổi|Giới\s*tính|Địa\s*chỉ|Điện\s*thoại|Sinh\s*hiệu|Thân\s*nhiệt|Huyết\s*áp|Cân\s*nặng|Chẩn\s*đoán|Điều\s*trị|Danh\s*mục\s*thuốc|STT)\s*:?|\s+(?:(?:\d{1,2}|[Ss])\s*(?:[\/\.)\-]|[Gg]))|$)/i);
+    pushAdminFieldFromWholeText('Họ tên', /(?:họ\s*tên|ho\s*ten|h[oọ]\s*t[eê]n|tên\s*bệnh\s*nhân)\s*[:\-]?\s*([^:;]+?)(?=\s+(?:NS|Năm\s*sinh|Giới\s*tính|Địa\s*chỉ|Điện\s*thoại|Sinh\s*hiệu|Thân\s*nhiệt|Huyết\s*áp|Cân\s*nặng|Chẩn\s*đoán|Điều\s*trị|Danh\s*mục\s*thuốc|STT)\s*:?|\s+Tuổi\s*[:\-]|\s+(?:(?:\d{1,2}|[Ss])\s*(?:[\/\.)\-]|[Gg]))|$)/i);
+    pushAdminFieldFromWholeText('NS', /(?:\bNS\b|Năm\s*sinh)\s*[:\-]?\s*(.+?)(?=\s+(?:Giới\s*tính|Địa\s*chỉ|Điện\s*thoại|Sinh\s*hiệu|Thân\s*nhiệt|Huyết\s*áp|Cân\s*nặng|Chẩn\s*đoán|Điều\s*trị|Danh\s*mục\s*thuốc|STT)\s*:?|\s+Tuổi\s*[:\-]|\s+(?:(?:\d{1,2}|[Ss])\s*(?:[\/\.)\-]|[Gg]))|$)/i);
     pushAdminFieldFromWholeText('Cân nặng', /(?:Cân\s*nặng)\s*:?\s*(.+?)(?=\s+(?:Sinh\s*hiệu|Thân\s*nhiệt|Huyết\s*áp|Chẩn\s*đoán|Điều\s*trị|Bệnh\s*kèm\s*theo|Danh\s*mục\s*thuốc|STT)\s*:?|\s+(?:(?:\d{1,2}|[Ss])\s*(?:[\/\.)\-]|[Gg]))|$)/i);
     pushAdminFieldFromWholeText('Địa chỉ', /(?:Địa\s*chỉ)\s*:?\s*(.+?)(?=\s+(?:Điện\s*thoại|Sinh\s*hiệu|Thân\s*nhiệt|Huyết\s*áp|Chẩn\s*đoán|Điều\s*trị|Danh\s*mục\s*thuốc|STT)\s*:?|\s+(?:(?:\d{1,2}|[Ss])\s*(?:[\/\.)\-]|[Gg]))|$)/i);
     pushAdminFieldFromWholeText('Điện thoại', /(?:Điện\s*thoại)\s*:?\s*(.+?)(?=\s+(?:Sinh\s*hiệu|Thân\s*nhiệt|Huyết\s*áp|Chẩn\s*đoán|Điều\s*trị|Danh\s*mục\s*thuốc|STT)\s*:?|\s+(?:(?:\d{1,2}|[Ss])\s*(?:[\/\.)\-]|[Gg]))|$)/i);
@@ -2922,7 +2923,113 @@ function parseMedicineGuideItems(formattedText) {
     let currentItem = null;
 
     const medPattern = /^((?:\d+)|(?:[Ss]))\s*(?:[\/\.)\-]+|[Gg])\s*(.+)$/i;
-    const quantityTailPattern = /(\d+\s*(Viên|Vien|Viện|Ống|Ong|Chai|Tuýp|Tuyp|Gói|Goi|ml|mg|UI|Giọt|Giot)|(Viên|Vien|Viện|Ống|Ong|Chai|Tuýp|Tuyp|Gói|Goi|Giọt|Giot)\s*\d+)$/i;
+    const quantityTailPattern = /(\d+\s*(Viên|Vien|Viện|Vién|Ống|Ong|Chai|Tuýp|Tuyp|Túyp|Typ|Tube|Gói|Goi|ml|mg|UI|Giọt|Giot|Vỉ|Vi)|(Viên|Vien|Viện|Vién|Ống|Ong|Chai|Tuýp|Tuyp|Túyp|Typ|Tube|Gói|Goi|Giọt|Giot|Vỉ|Vi)\s*\d+)\s*[).,;:]*$/i;
+    const packageQuantityInlinePattern = /(\d{1,3}\s*(Viên|Vien|Viện|Vién|Ống|Ong|Chai|Tuýp|Tuyp|Túyp|Typ|Tube|Gói|Goi|Giọt|Giot|Vỉ|Vi)|(Viên|Vien|Viện|Vién|Ống|Ong|Chai|Tuýp|Tuyp|Túyp|Typ|Tube|Gói|Goi|Giọt|Giot|Vỉ|Vi)\s*\d{1,3})/i;
+
+    const extractQuantityFromLine = (text) => {
+        const source = (text || '').trim();
+        if (!source) return { quantity: '', stripped: source };
+
+        const normalizedSource = normalizeOcrLine(source);
+        const normalizedMatch = normalizedSource.match(quantityTailPattern);
+        const rawMatch = source.match(quantityTailPattern);
+        const picked = rawMatch || normalizedMatch;
+        if (!picked || !picked[1]) {
+            return { quantity: '', stripped: source };
+        }
+
+        const quantity = picked[1].replace(/\s{2,}/g, ' ').trim();
+        const idx = source.toLowerCase().lastIndexOf(quantity.toLowerCase());
+        if (idx === -1) {
+            const inlineMatch = source.match(packageQuantityInlinePattern);
+            if (!inlineMatch || !inlineMatch[1]) {
+                return { quantity, stripped: source };
+            }
+            const inlineText = inlineMatch[1].replace(/\s{2,}/g, ' ').trim();
+            const inlineIdx = inlineMatch.index ?? source.toLowerCase().indexOf(inlineText.toLowerCase());
+            if (inlineIdx === -1) {
+                return { quantity: inlineText, stripped: source };
+            }
+            const strippedInline = `${source.slice(0, inlineIdx)} ${source.slice(inlineIdx + inlineMatch[0].length)}`
+                .replace(/\s{2,}/g, ' ')
+                .replace(/[).,;:]+\s*$/g, '')
+                .trim();
+            return { quantity: inlineText, stripped: strippedInline };
+        }
+
+        const stripped = source
+            .slice(0, idx)
+            .replace(/[).,;:]+\s*$/g, '')
+            .trim();
+
+        return { quantity, stripped };
+    };
+
+    const cleanMedicineName = (text) => {
+        return (text || '')
+            .replace(/\s*[\(\[]\s*$/g, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+    };
+
+    const cleanDosageText = (text) => {
+        return (text || '')
+            .replace(/^[,;:.\-\)\]]+\s*/g, '')
+            .replace(/\s*[\)\]]\s*$/g, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+    };
+
+    const looksLikeDosageFragment = (text) => {
+        const value = (text || '').trim();
+        if (!value) return false;
+        const normalized = value.toLowerCase();
+
+        if (/^(sáng|sang|trưa|trua|chiều|chieu|tối|toi|uống|uong|thoa|bôi|boi|liều|ghi chú|ngày|ngay)\b/i.test(value)) {
+            return true;
+        }
+        if (/^(\d+\s*\/\s*\d+|\/\d+|\d+\/)/.test(value)) {
+            return true;
+        }
+        if (/\b(\d+\s*(lần|lan)\s*\/\s*(ngày|ngay)|mỗi\s*ngày|x\s*\d+)\b/i.test(normalized)) {
+            return true;
+        }
+        if (/\/\s*(ngày|ngay)\b/i.test(normalized)) {
+            return true;
+        }
+        if (/\b([br]?in\s*\/\s*ngày|vien\s*\/\s*ngày|viên\s*\/\s*ngày)\b/i.test(normalized)) {
+            return true;
+        }
+        return false;
+    };
+
+    const looksLikeMedicineName = (text) => {
+        const value = cleanMedicineName(text || '');
+        if (!value) return false;
+        if (looksLikeDosageFragment(value)) return false;
+        const hasLetters = /[A-Za-zÀ-ỹ]/.test(value);
+        if (!hasLetters) return false;
+
+        const hasDrugCue = /\b(mg|ml|ui|mcg|g|viên|vien|ống|ong|chai|tuýp|tuyp|túyp|typ|tube|gói|goi|giọt|giot|sir[oô]?)\b/i.test(value);
+        if (hasDrugCue) {
+            return true;
+        }
+
+        if (/\/\s*(ngày|ngay)\b/i.test(value)) {
+            return false;
+        }
+
+        const tokens = value.split(/\s+/).filter(Boolean);
+        const tokenCount = tokens.length;
+        if (tokenCount >= 2) return true;
+
+        const single = tokens[0] || '';
+        if (single.length >= 4 && !/^(sáng|sang|trưa|trua|chiều|chieu|tối|toi|uống|uong|thoa|bôi|boi|liều|ngày|ngay)$/i.test(single)) {
+            return true;
+        }
+
+        return false;
+    };
 
     const noSeparatorMedPattern = /^(\d{1,2})\s+(.+)$/;
     const looksLikeStandaloneMedicine = (indexText, nameText) => {
@@ -2970,6 +3077,23 @@ function parseMedicineGuideItems(formattedText) {
                 }
                 continue;
             }
+
+            const rawCandidate = (medRemainder || medMatch[2] || '').trim();
+            if (currentItem && looksLikeDosageFragment(rawCandidate)) {
+                let dosageLine = cleanDosageText(rawCandidate);
+                if (!currentItem.quantity) {
+                    const extractedDose = extractQuantityFromLine(dosageLine);
+                    if (extractedDose.quantity) {
+                        currentItem.quantity = extractedDose.quantity;
+                        dosageLine = cleanDosageText(extractedDose.stripped);
+                    }
+                }
+                if (dosageLine) {
+                    currentItem.dosage.push(dosageLine);
+                }
+                continue;
+            }
+
             let namePart = (medRemainder || medMatch[2] || '').trim();
             let quantityPart = '';
 
@@ -2985,11 +3109,39 @@ function parseMedicineGuideItems(formattedText) {
                     inlineDosagePart = namePart.slice(dosageKw.index).trim();
                     namePart = namePart.slice(0, dosageKw.index).trim();
                 }
-                const qtyMatch = namePart.match(quantityTailPattern);
-                if (qtyMatch) {
-                    quantityPart = qtyMatch[1].trim();
-                    namePart = namePart.slice(0, qtyMatch.index).trim();
+                const extracted = extractQuantityFromLine(namePart);
+                if (extracted.quantity) {
+                    quantityPart = extracted.quantity;
+                    namePart = extracted.stripped;
                 }
+
+                if (inlineDosagePart && !quantityPart) {
+                    const extractedInlineDose = extractQuantityFromLine(inlineDosagePart);
+                    if (extractedInlineDose.quantity) {
+                        quantityPart = extractedInlineDose.quantity;
+                        inlineDosagePart = extractedInlineDose.stripped;
+                    }
+                }
+            }
+
+            namePart = cleanMedicineName(namePart);
+            inlineDosagePart = cleanDosageText(inlineDosagePart);
+
+            if (!looksLikeMedicineName(namePart)) {
+                if (currentItem) {
+                    let dosageLine = cleanDosageText(rawCandidate || line);
+                    if (!currentItem.quantity) {
+                        const extractedDose = extractQuantityFromLine(dosageLine);
+                        if (extractedDose.quantity) {
+                            currentItem.quantity = extractedDose.quantity;
+                            dosageLine = cleanDosageText(extractedDose.stripped);
+                        }
+                    }
+                    if (dosageLine) {
+                        currentItem.dosage.push(dosageLine);
+                    }
+                }
+                continue;
             }
 
             currentItem = {
@@ -3009,10 +3161,10 @@ function parseMedicineGuideItems(formattedText) {
 
             // Recover quantity if OCR put quantity in dosage line, e.g. "uống sau ăn) 06 Viên"
             if (!currentItem.quantity) {
-                const qtyInDose = dosageLine.match(quantityTailPattern);
-                if (qtyInDose) {
-                    currentItem.quantity = qtyInDose[1].trim();
-                    dosageLine = dosageLine.slice(0, qtyInDose.index).trim();
+                const extractedDose = extractQuantityFromLine(dosageLine);
+                if (extractedDose.quantity) {
+                    currentItem.quantity = extractedDose.quantity;
+                    dosageLine = extractedDose.stripped;
                 }
             }
 
@@ -3020,6 +3172,17 @@ function parseMedicineGuideItems(formattedText) {
                 currentItem.dosage.push(dosageLine);
             }
             continue;
+        }
+
+        if (!currentItem.quantity) {
+            const extractedFromTail = extractQuantityFromLine(line);
+            if (extractedFromTail.quantity) {
+                currentItem.quantity = extractedFromTail.quantity;
+                if (extractedFromTail.stripped) {
+                    currentItem.dosage.push(extractedFromTail.stripped);
+                }
+                continue;
+            }
         }
 
         if (/^(\d+\/\d+|\/\d+|\d+\/|;|,)/.test(line) && currentItem.dosage.length > 0) {
@@ -3041,10 +3204,38 @@ function parseMedicineGuideItems(formattedText) {
                 inlineDosagePart = namePart.slice(dosageKw.index).trim();
                 namePart = namePart.slice(0, dosageKw.index).trim();
             }
-            const qtyMatch = namePart.match(quantityTailPattern);
-            if (qtyMatch) {
-                quantityPart = qtyMatch[1].trim();
-                namePart = namePart.slice(0, qtyMatch.index).trim();
+            const extracted = extractQuantityFromLine(namePart);
+            if (extracted.quantity) {
+                quantityPart = extracted.quantity;
+                namePart = extracted.stripped;
+            }
+
+            if (inlineDosagePart && !quantityPart) {
+                const extractedInlineDose = extractQuantityFromLine(inlineDosagePart);
+                if (extractedInlineDose.quantity) {
+                    quantityPart = extractedInlineDose.quantity;
+                    inlineDosagePart = extractedInlineDose.stripped;
+                }
+            }
+
+            namePart = cleanMedicineName(namePart);
+            inlineDosagePart = cleanDosageText(inlineDosagePart);
+
+            if (!looksLikeMedicineName(namePart)) {
+                if (currentItem) {
+                    let dosageLine = cleanDosageText(line);
+                    if (!currentItem.quantity) {
+                        const extractedDose = extractQuantityFromLine(dosageLine);
+                        if (extractedDose.quantity) {
+                            currentItem.quantity = extractedDose.quantity;
+                            dosageLine = cleanDosageText(extractedDose.stripped);
+                        }
+                    }
+                    if (dosageLine) {
+                        currentItem.dosage.push(dosageLine);
+                    }
+                }
+                continue;
             }
 
             const autoIndex = String(items.length + 1);
@@ -3058,6 +3249,13 @@ function parseMedicineGuideItems(formattedText) {
             continue;
         }
     }
+
+    // UI stability: keep numbering sequential even when OCR misreads indices.
+    items.forEach((item, idx) => {
+        item.index = String(idx + 1);
+        item.name = cleanMedicineName(item.name);
+        item.dosage = (item.dosage || []).map((dose) => cleanDosageText(dose)).filter(Boolean);
+    });
 
     return items;
 }

@@ -111,6 +111,34 @@
             line-height: 1.55;
             margin-top: 0.4rem;
         }
+        .delete-confirm-card {
+            width: min(540px, 100%);
+            border-radius: 20px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background: linear-gradient(160deg, rgba(15, 23, 42, 0.97), rgba(30, 41, 59, 0.94));
+            box-shadow: 0 22px 50px rgba(2, 132, 199, 0.24);
+            padding: 22px;
+        }
+        .delete-confirm-title {
+            color: #f8fafc;
+            font-weight: 800;
+            font-size: 1.08rem;
+        }
+        .delete-confirm-text {
+            color: #cbd5e1;
+            font-size: 0.95rem;
+            line-height: 1.55;
+            margin-top: 0.45rem;
+        }
+        .delete-confirm-btn {
+            border-radius: 12px;
+            padding: 9px 16px;
+            font-weight: 700;
+            transition: all 0.2s ease;
+        }
+        .delete-confirm-btn:hover {
+            transform: translateY(-1px);
+        }
         .brand-logo-image {
             width: 40px;
             height: 40px;
@@ -302,6 +330,22 @@
                 </div>
             </div>
         </div>
+
+        <div id="deleteConfirmModal" class="rename-modal-overlay" aria-hidden="true">
+            <div id="deleteConfirmCard" class="delete-confirm-card">
+                <div class="flex items-center gap-2.5 mb-1">
+                    <span class="w-8 h-8 rounded-xl bg-red-500/15 border border-red-400/30 text-red-300 flex items-center justify-center">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </span>
+                    <h3 id="deleteConfirmTitle" class="delete-confirm-title">Xóa đơn thuốc</h3>
+                </div>
+                <p id="deleteConfirmText" class="delete-confirm-text">Bạn có chắc chắn muốn xóa đơn thuốc này?</p>
+                <div class="mt-5 flex items-center justify-end gap-2.5">
+                    <button id="deleteConfirmCancelBtn" type="button" class="delete-confirm-btn border border-slate-500/50 text-slate-300 hover:bg-slate-700/45">Hủy</button>
+                    <button id="deleteConfirmOkBtn" type="button" class="delete-confirm-btn text-white bg-gradient-to-r from-red-500 to-rose-500 shadow-lg shadow-red-500/25 hover:opacity-90">Xóa</button>
+                </div>
+            </div>
+        </div>
     </main>
 </div>
 
@@ -331,6 +375,11 @@ const noticeModalIcon = document.getElementById('noticeModalIcon');
 const noticeModalTitle = document.getElementById('noticeModalTitle');
 const noticeModalText = document.getElementById('noticeModalText');
 const noticeOkBtn = document.getElementById('noticeOkBtn');
+const deleteConfirmModal = document.getElementById('deleteConfirmModal');
+const deleteConfirmCard = document.getElementById('deleteConfirmCard');
+const deleteConfirmText = document.getElementById('deleteConfirmText');
+const deleteConfirmCancelBtn = document.getElementById('deleteConfirmCancelBtn');
+const deleteConfirmOkBtn = document.getElementById('deleteConfirmOkBtn');
 const printFilenameEl = document.getElementById('printFilename');
 const printScannedAtEl = document.getElementById('printScannedAt');
 
@@ -344,6 +393,7 @@ let selectedCreatedAtLabel = '';
 let currentUserFullname = '';
 let currentUserPhone = '';
 let renameTargetId = null;
+let deleteConfirmResolver = null;
 
 function refreshPrintHeaderMeta() {
     if (printFilenameEl) {
@@ -704,6 +754,49 @@ function closeNoticeModal() {
     });
 }
 
+function openDeleteConfirmModal(message) {
+    deleteConfirmText.textContent = message || 'Bạn có chắc chắn muốn xóa đơn thuốc này?';
+    deleteConfirmModal.style.display = 'flex';
+    deleteConfirmModal.setAttribute('aria-hidden', 'false');
+    lucide.createIcons();
+    gsap.fromTo(deleteConfirmCard, { y: 18, opacity: 0, scale: 0.97 }, { y: 0, opacity: 1, scale: 1, duration: 0.26, ease: 'power3.out' });
+    setTimeout(() => {
+        deleteConfirmCancelBtn.focus();
+    }, 10);
+}
+
+function closeDeleteConfirmModal() {
+    if (deleteConfirmModal.style.display === 'none' || !deleteConfirmModal.style.display) return;
+    gsap.to(deleteConfirmCard, {
+        y: 12,
+        opacity: 0,
+        scale: 0.98,
+        duration: 0.2,
+        ease: 'power2.in',
+        onComplete: () => {
+            deleteConfirmModal.style.display = 'none';
+            deleteConfirmModal.setAttribute('aria-hidden', 'true');
+            gsap.set(deleteConfirmCard, { clearProps: 'all' });
+        }
+    });
+}
+
+function resolveDeleteConfirmation(accepted) {
+    const resolver = deleteConfirmResolver;
+    deleteConfirmResolver = null;
+    closeDeleteConfirmModal();
+    if (typeof resolver === 'function') {
+        resolver(Boolean(accepted));
+    }
+}
+
+function askDeleteConfirmation(message) {
+    return new Promise((resolve) => {
+        deleteConfirmResolver = resolve;
+        openDeleteConfirmModal(message);
+    });
+}
+
 async function submitRenameModal() {
     if (!renameTargetId) return;
 
@@ -771,6 +864,13 @@ noticeOkBtn.addEventListener('click', closeNoticeModal);
 noticeModal.addEventListener('click', (event) => {
     if (event.target.id === 'noticeModal') {
         closeNoticeModal();
+    }
+});
+deleteConfirmCancelBtn.addEventListener('click', () => resolveDeleteConfirmation(false));
+deleteConfirmOkBtn.addEventListener('click', () => resolveDeleteConfirmation(true));
+deleteConfirmModal.addEventListener('click', (event) => {
+    if (event.target.id === 'deleteConfirmModal') {
+        resolveDeleteConfirmation(false);
     }
 });
 
@@ -1111,22 +1211,46 @@ sendEmailBtn.addEventListener('click', async () => {
 
 deleteResultBtn.addEventListener('click', async () => {
     if (!selectedHistoryId) return;
-    const accepted = confirm('Bạn có chắc chắn muốn xóa đơn thuốc này?');
+    const accepted = await askDeleteConfirmation('Bạn có chắc chắn muốn xóa đơn thuốc này?');
     if (!accepted) return;
 
-    const response = await fetch('/api/history', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selectedHistoryId })
-    });
+    try {
+        const response = await fetch('/api/history', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: selectedHistoryId })
+        });
 
-    if (!response.ok) return;
+        if (!response.ok) {
+            throw new Error('Không thể xóa đơn thuốc lúc này.');
+        }
 
-    await loadHistory();
-    result.classList.add('hidden');
-    resultText.textContent = '';
-    selectedHistoryId = null;
-    selectedFilename = '';
+        await loadHistory();
+        result.classList.add('hidden');
+        resultText.textContent = '';
+        selectedHistoryId = null;
+        selectedFilename = '';
+    } catch (err) {
+        showNoticeModal(err.message || 'Không thể xóa đơn thuốc lúc này.', 'error');
+    }
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+
+    if (deleteConfirmModal.style.display && deleteConfirmModal.style.display !== 'none') {
+        resolveDeleteConfirmation(false);
+        return;
+    }
+
+    if (noticeModal.style.display && noticeModal.style.display !== 'none') {
+        closeNoticeModal();
+        return;
+    }
+
+    if (renameModal.style.display && renameModal.style.display !== 'none') {
+        closeRenameModal();
+    }
 });
 
 loadHistory();

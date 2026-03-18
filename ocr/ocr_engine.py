@@ -29,15 +29,15 @@ if tesseract_path:
 def _resize_for_ocr(gray):
     h, w = gray.shape[:2]
     max_side = max(h, w)
-    # Cap 900px: nhanh nhất cho Render free tier 0.1 vCPU
-    cap = 900
+    # Keep enough detail for medicine names and dosage values.
+    cap = 2400
     if max_side > cap:
         scale = cap / max_side
         new_w = int(w * scale)
         new_h = int(h * scale)
         return cv2.resize(gray, (new_w, new_h), interpolation=cv2.INTER_AREA)
-    if max_side < 500:
-        scale = 500 / max_side
+    if max_side < 1600:
+        scale = 1600 / max_side
         new_w = int(w * scale)
         new_h = int(h * scale)
         return cv2.resize(gray, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
@@ -145,6 +145,18 @@ def preprocess_variants(img):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
     dilated = cv2.dilate(otsu, kernel, iterations=1)
     variants.append(("dilated", dilated))
+
+    # Variant 6: Deskew + CLAHE + Otsu for skewed prescriptions
+    deskewed = _deskew(gray)
+    clahe_deskew = cv2.createCLAHE(clipLimit=2.2, tileGridSize=(8, 8)).apply(deskewed)
+    otsu_deskew = cv2.threshold(clahe_deskew, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+    variants.append(("deskew_clahe_otsu", otsu_deskew))
+
+    # Variant 7: Gentle sharpen for blurry low-contrast text
+    sharpen_kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]], dtype=np.float32)
+    sharpened = cv2.filter2D(gray, -1, sharpen_kernel)
+    sharpened_otsu = cv2.threshold(sharpened, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+    variants.append(("sharpen_otsu", sharpened_otsu))
     
     return variants
 
@@ -358,8 +370,26 @@ def _format_prescription_layout(text):
 
 def _extract_with_confidence(image, lang, config):
     raw_text = pytesseract.image_to_string(image, lang=lang, config=config, timeout=45)
+    data_config = f"{config} -c tessedit_create_tsv=1"
+    ocr_data = pytesseract.image_to_data(
+        image,
+        lang=lang,
+        config=data_config,
+        timeout=45,
+        output_type=pytesseract.Output.DICT,
+    )
+    conf_values = []
+    for value in (ocr_data.get("conf") or []):
+        try:
+            conf = float(value)
+        except (TypeError, ValueError):
+            continue
+        if conf >= 0:
+            conf_values.append(conf)
+
+    avg_conf = (sum(conf_values) / len(conf_values)) if conf_values else 0.0
     text = _post_process_text(raw_text)
-    score = _score_ocr_text(text, 0.0)
+    score = _score_ocr_text(text, avg_conf)
     return text, score
 
 
@@ -436,7 +466,9 @@ def extract_text(image_path):
         # Try different PSM modes
         psm_configs = [
             (11, r"--oem 1 --psm 11 -c preserve_interword_spaces=1 -c user_defined_dpi=300"),
+            (12, r"--oem 1 --psm 12 -c preserve_interword_spaces=1 -c user_defined_dpi=300"),
             (6, r"--oem 1 --psm 6 -c preserve_interword_spaces=1 -c user_defined_dpi=300"),
+            (4, r"--oem 1 --psm 4 -c preserve_interword_spaces=1 -c user_defined_dpi=300"),
             (3, r"--oem 1 --psm 3 -c preserve_interword_spaces=1 -c user_defined_dpi=300"),
         ]
         
