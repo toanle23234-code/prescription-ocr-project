@@ -30,14 +30,15 @@ def _resize_for_ocr(gray):
     h, w = gray.shape[:2]
     max_side = max(h, w)
     # Keep enough detail for medicine names and dosage values.
-    cap = 2400
+    # Use smaller cap for low-resource servers (Render free tier).
+    cap = 1800
     if max_side > cap:
         scale = cap / max_side
         new_w = int(w * scale)
         new_h = int(h * scale)
         return cv2.resize(gray, (new_w, new_h), interpolation=cv2.INTER_AREA)
-    if max_side < 1600:
-        scale = 1600 / max_side
+    if max_side < 1200:
+        scale = 1200 / max_side
         new_w = int(w * scale)
         new_h = int(h * scale)
         return cv2.resize(gray, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
@@ -122,41 +123,19 @@ def preprocess_variants(img):
     
     variants = []
     
-    # Variant 1: CLAHE + Otsu (original)
+    # Variant 1: CLAHE + Otsu (best general purpose)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(gray)
     otsu = cv2.threshold(clahe, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
     variants.append(("clahe_otsu", otsu))
     
-    # Variant 2: More aggressive CLAHE
-    clahe_strong = cv2.createCLAHE(clipLimit=3.5, tileGridSize=(6, 6)).apply(gray)
-    otsu_strong = cv2.threshold(clahe_strong, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-    variants.append(("clahe_strong_otsu", otsu_strong))
-    
-    # Variant 3: Simple Otsu without CLAHE
+    # Variant 2: Simple Otsu without CLAHE
     _, otsu_simple = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     variants.append(("simple_otsu", otsu_simple))
     
-    # Variant 4: Adaptive threshold
+    # Variant 3: Adaptive threshold
     adaptive = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
                                       cv2.THRESH_BINARY, 11, 2)
     variants.append(("adaptive", adaptive))
-    
-    # Variant 5: Dialate + Erode to connect text
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-    dilated = cv2.dilate(otsu, kernel, iterations=1)
-    variants.append(("dilated", dilated))
-
-    # Variant 6: Deskew + CLAHE + Otsu for skewed prescriptions
-    deskewed = _deskew(gray)
-    clahe_deskew = cv2.createCLAHE(clipLimit=2.2, tileGridSize=(8, 8)).apply(deskewed)
-    otsu_deskew = cv2.threshold(clahe_deskew, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-    variants.append(("deskew_clahe_otsu", otsu_deskew))
-
-    # Variant 7: Gentle sharpen for blurry low-contrast text
-    sharpen_kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]], dtype=np.float32)
-    sharpened = cv2.filter2D(gray, -1, sharpen_kernel)
-    sharpened_otsu = cv2.threshold(sharpened, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-    variants.append(("sharpen_otsu", sharpened_otsu))
     
     return variants
 
@@ -461,13 +440,13 @@ def _text_from_ocr_data(ocr_data):
 
 
 def _extract_with_confidence(image, lang, config):
-    raw_text = pytesseract.image_to_string(image, lang=lang, config=config, timeout=45)
+    raw_text = pytesseract.image_to_string(image, lang=lang, config=config, timeout=120)
     data_config = f"{config} -c tessedit_create_tsv=1"
     ocr_data = pytesseract.image_to_data(
         image,
         lang=lang,
         config=data_config,
-        timeout=45,
+        timeout=120,
         output_type=pytesseract.Output.DICT,
     )
     conf_values = []
@@ -605,8 +584,6 @@ def extract_text(image_path):
 
         # Try different PSM modes
         psm_configs = [
-            (11, r"--oem 1 --psm 11 -c preserve_interword_spaces=1 -c user_defined_dpi=300"),
-            (12, r"--oem 1 --psm 12 -c preserve_interword_spaces=1 -c user_defined_dpi=300"),
             (6, r"--oem 1 --psm 6 -c preserve_interword_spaces=1 -c user_defined_dpi=300"),
             (4, r"--oem 1 --psm 4 -c preserve_interword_spaces=1 -c user_defined_dpi=300"),
             (3, r"--oem 1 --psm 3 -c preserve_interword_spaces=1 -c user_defined_dpi=300"),
@@ -668,7 +645,7 @@ def extract_text(image_path):
             
             for psm_mode, config in psm_configs:
                 try:
-                    raw = pytesseract.image_to_string(gray_fb, lang=lang, config=config, timeout=45)
+                    raw = pytesseract.image_to_string(gray_fb, lang=lang, config=config, timeout=120)
                     raw = _post_process_text(raw)
                     if raw:
                         gray_score = _score_ocr_text(raw, 0.0)
