@@ -7,6 +7,11 @@
 ## Đường link demo đến trang web 
  https://prescription-ocr.onrender.com
 
+## Tài Khoản Mật Khẩu Để Đăng Nhập Test
+toanle23234@gmail.com
+Toan@123
+
+
 **Ảnh ví dụ:**
 
 ![Ảnh ví dụ](docs/images/prescription-real-example.png)
