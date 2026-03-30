@@ -8,8 +8,7 @@
  https://prescription-ocr.onrender.com
 
 ## Tài Khoản Mật Khẩu Để Đăng Nhập Test
-toanle23234@gmail.com
-Toan@123
+TK: toanle23234@gmail.com   |||     MK: Toan@123
 
 
 **Ảnh ví dụ:**
